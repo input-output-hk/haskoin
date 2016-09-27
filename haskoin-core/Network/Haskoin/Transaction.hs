@@ -45,6 +45,6 @@ module Network.Haskoin.Transaction
 , buildInput
 ) where
 
-import Network.Haskoin.Transaction.Builder
-import Network.Haskoin.Transaction.Types
+import           Network.Haskoin.Transaction.Builder
+import           Network.Haskoin.Transaction.Types
 

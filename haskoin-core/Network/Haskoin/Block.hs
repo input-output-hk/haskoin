@@ -42,6 +42,6 @@ module Network.Haskoin.Block
 , encodeCompact
 ) where
 
-import Network.Haskoin.Block.Types
-import Network.Haskoin.Block.Merkle
+import           Network.Haskoin.Block.Merkle
+import           Network.Haskoin.Block.Types
 

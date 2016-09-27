@@ -1,15 +1,15 @@
 module Network.Haskoin.Crypto.ExtendedKeys.Tests (tests) where
 
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Test.Framework                       (Test, testGroup)
+import           Test.Framework.Providers.QuickCheck2 (testProperty)
 
-import Data.String (fromString)
-import Data.String.Conversions (cs)
-import Data.Word (Word32)
-import Data.Bits ((.&.))
+import           Data.Bits                            ((.&.))
+import           Data.String                          (fromString)
+import           Data.String.Conversions              (cs)
+import           Data.Word                            (Word32)
 
-import Network.Haskoin.Test
-import Network.Haskoin.Crypto
+import           Network.Haskoin.Crypto
+import           Network.Haskoin.Test
 
 tests :: [Test]
 tests =

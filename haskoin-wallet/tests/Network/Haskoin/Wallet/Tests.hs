@@ -1,13 +1,14 @@
 module Network.Haskoin.Wallet.Tests (tests) where
 
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Test.Framework                       (Test, testGroup)
+import           Test.Framework.Providers.QuickCheck2 (testProperty)
 
-import Data.Aeson (FromJSON, ToJSON, encode, decode)
-import Data.HashMap.Strict (singleton)
+import           Data.Aeson                           (FromJSON, ToJSON, decode,
+                                                       encode)
+import           Data.HashMap.Strict                  (singleton)
 
-import Network.Haskoin.Wallet.Arbitrary ()
-import Network.Haskoin.Wallet
+import           Network.Haskoin.Wallet
+import           Network.Haskoin.Wallet.Arbitrary     ()
 
 tests :: [Test]
 tests =

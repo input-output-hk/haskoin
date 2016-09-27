@@ -4,10 +4,10 @@ module Network.Haskoin.Node.Checkpoints
 , verifyCheckpoint
 ) where
 
-import qualified Data.IntMap.Strict as M (IntMap, fromList, lookup)
+import qualified Data.IntMap.Strict        as M (IntMap, fromList, lookup)
 
-import Network.Haskoin.Block
-import Network.Haskoin.Constants
+import           Network.Haskoin.Block
+import           Network.Haskoin.Constants
 
 -- | Checkpoints from bitcoind reference implementation /src/checkpoints.cpp
 -- presented as an IntMap.

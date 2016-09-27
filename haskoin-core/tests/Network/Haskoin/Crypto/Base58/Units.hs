@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Haskoin.Crypto.Base58.Units (tests) where
 
-import Test.HUnit (Assertion, assertBool)
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.HUnit (testCase)
+import           Test.Framework                 (Test, testGroup)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (Assertion, assertBool)
 
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS (append, pack, empty)
+import           Data.ByteString                (ByteString)
+import qualified Data.ByteString                as BS (append, empty, pack)
 
-import Network.Haskoin.Crypto
+import           Network.Haskoin.Crypto
 
 tests :: [Test]
 tests =

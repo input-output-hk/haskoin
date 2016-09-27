@@ -6,18 +6,14 @@ module Network.Haskoin.Test.Message
 , ArbitraryMessage(..)
 ) where
 
-import Test.QuickCheck
-    ( Arbitrary
-    , arbitrary
-    , oneof
-    )
+import           Test.QuickCheck                  (Arbitrary, arbitrary, oneof)
 
-import Network.Haskoin.Test.Crypto
-import Network.Haskoin.Test.Node
-import Network.Haskoin.Test.Transaction
-import Network.Haskoin.Test.Block
+import           Network.Haskoin.Test.Block
+import           Network.Haskoin.Test.Crypto
+import           Network.Haskoin.Test.Node
+import           Network.Haskoin.Test.Transaction
 
-import Network.Haskoin.Node.Message
+import           Network.Haskoin.Node.Message
 
 -- | Arbitrary MessageHeader
 newtype ArbitraryMessageHeader = ArbitraryMessageHeader MessageHeader

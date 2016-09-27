@@ -59,7 +59,9 @@ import           Network.Haskoin.Node.HeaderTree
 import           Network.Haskoin.Node.Peer
 import           Network.Haskoin.Node.STM
 import           Network.Haskoin.Transaction
-import           Network.Haskoin.Wallet.Accounts
+import           Network.Haskoin.Wallet.Accounts       (firstAddrTime,
+                                                        getBloomFilter,
+                                                        initWallet)
 import           Network.Haskoin.Wallet.Database
 import           Network.Haskoin.Wallet.Model
 import           Network.Haskoin.Wallet.Server.Handler

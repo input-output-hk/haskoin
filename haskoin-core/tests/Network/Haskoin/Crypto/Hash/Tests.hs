@@ -1,15 +1,15 @@
 module Network.Haskoin.Crypto.Hash.Tests (tests) where
 
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Test.Framework                       (Test, testGroup)
+import           Test.Framework.Providers.QuickCheck2 (testProperty)
 
-import Data.String (fromString)
-import Data.String.Conversions (cs)
-import Data.Serialize (encode)
-import Network.Haskoin.Block
-import Network.Haskoin.Crypto
-import Network.Haskoin.Test
-import Network.Haskoin.Util
+import           Data.Serialize                       (encode)
+import           Data.String                          (fromString)
+import           Data.String.Conversions              (cs)
+import           Network.Haskoin.Block
+import           Network.Haskoin.Crypto
+import           Network.Haskoin.Test
+import           Network.Haskoin.Util
 
 tests :: [Test]
 tests =

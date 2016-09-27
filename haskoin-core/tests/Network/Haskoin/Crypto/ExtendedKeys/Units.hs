@@ -1,19 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Haskoin.Crypto.ExtendedKeys.Units (tests) where
 
-import Test.HUnit (Assertion, assertBool, assertEqual)
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.HUnit (testCase)
+import           Test.Framework                 (Test, testGroup)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (Assertion, assertBool,
+                                                 assertEqual)
 
-import qualified Data.Aeson as Aeson (decode, encode)
-import Data.Maybe (isJust, isNothing, fromJust)
-import Data.String (fromString)
-import Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy.Char8 as B8
-import Data.Serialize (encode)
+import qualified Data.Aeson                     as Aeson (decode, encode)
+import           Data.ByteString                (ByteString)
+import qualified Data.ByteString.Lazy.Char8     as B8
+import           Data.Maybe                     (fromJust, isJust, isNothing)
+import           Data.Serialize                 (encode)
+import           Data.String                    (fromString)
 
-import Network.Haskoin.Crypto
-import Network.Haskoin.Util
+import           Network.Haskoin.Crypto
+import           Network.Haskoin.Util
 
 tests :: [Test]
 tests =
@@ -199,7 +200,7 @@ applyPathVectors =
     xpub = deriveXPubKey xprv
 
 badApplyPathVectors :: [(XKey, String)]
-badApplyPathVectors = [ 
+badApplyPathVectors = [
     ( XPub xpub, "m/8'" )
   , ( XPub xpub, "M/8'" )
   , ( XPub xpub, "M/1/2/3'/4/5" )

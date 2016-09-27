@@ -81,7 +81,10 @@ import           Network.Haskoin.Node.STM
 import           Network.Haskoin.Script
 import           Network.Haskoin.Transaction
 import           Network.Haskoin.Util
-import           Network.Haskoin.Wallet.Accounts
+import           Network.Haskoin.Wallet.Accounts (getPathRedeem,
+                                                  isMultisigAccount,
+                                                  subSelectAddrCount,
+                                                  unusedAddresses, useAddress)
 import           Network.Haskoin.Wallet.Model
 import           Network.Haskoin.Wallet.Types
 
@@ -644,7 +647,7 @@ buildAccTxs notifChanM tx confidence inCoins outCoins = do
         let newOs = map (toCoin ai ti now) os
         forM_ newOs $ \c -> P.insertBy c >>= \resE -> case resE of
             Left (Entity ci _) -> replace ci c
-            _ -> return ()
+            _                  -> return ()
 
         -- Return the new transaction record
         return newAtx
@@ -1157,7 +1160,7 @@ signOfflineTx acc masterM tx coinSignData
     toPrvKey (CoinSignData _ _ deriv) = derivePath deriv master
     master = case masterM of
         Just m -> case accountDerivation acc of
-            Just d -> derivePath d m
+            Just d  -> derivePath d m
             Nothing -> m
         Nothing -> fromMaybe
             (throw $ WalletException "No extended private key available")
@@ -1273,7 +1276,7 @@ accountBalance ai minconf offline = do
         return $ sum_ (c ^. WalletCoinValue)
     case res of
         (Value (Just s):_) -> return $ floor (s :: Double)
-        _ -> return 0
+        _                  -> return 0
   where
     validConfidence = TxPending : TxBuilding : [ TxOffline | offline ]
 
@@ -1355,4 +1358,3 @@ resetRescan = do
     P.deleteWhere ([] :: [P.Filter SpentCoin])
     P.deleteWhere ([] :: [P.Filter WalletTx])
     setBestBlock (headerHash genesisHeader) 0
-

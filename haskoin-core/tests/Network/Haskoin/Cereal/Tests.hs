@@ -1,11 +1,12 @@
 module Network.Haskoin.Cereal.Tests (tests) where
 
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Test.Framework                       (Test, testGroup)
+import           Test.Framework.Providers.QuickCheck2 (testProperty)
 
-import Data.Serialize (Serialize, decode, encode)
+import           Data.Serialize                       (Serialize, decode,
+                                                       encode)
 
-import Network.Haskoin.Test
+import           Network.Haskoin.Test
 
 tests :: [Test]
 tests =

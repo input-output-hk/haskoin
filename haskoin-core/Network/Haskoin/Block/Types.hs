@@ -33,8 +33,8 @@ import           Data.ByteString                   (ByteString)
 import qualified Data.ByteString                   as BS (length, reverse)
 import           Data.Maybe                        (fromMaybe)
 import           Data.Serialize                    (Serialize, encode, get, put)
-import           Data.Serialize.Get                (getWord32le, lookAhead,
-                                                    remaining, getByteString)
+import           Data.Serialize.Get                (getByteString, getWord32le,
+                                                    lookAhead, remaining)
 import           Data.Serialize.Put                (Put, putWord32le)
 import           Data.String                       (IsString, fromString)
 import           Data.String.Conversions           (cs)
@@ -53,9 +53,9 @@ import qualified Text.Read                         as Read (Lexeme (Ident, Strin
 data Block =
     Block {
             -- | Header information for this block.
-            blockHeader     :: !BlockHeader
+            blockHeader :: !BlockHeader
             -- | List of transactions pertaining to this block.
-          , blockTxns       :: ![Tx]
+          , blockTxns   :: ![Tx]
           } deriving (Eq, Show, Read)
 
 instance NFData Block where

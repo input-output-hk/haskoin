@@ -1,16 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Haskoin.Node.Units (tests) where
 
-import Test.HUnit (Assertion, assertBool)
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.HUnit (testCase)
+import           Test.Framework                 (Test, testGroup)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (Assertion, assertBool)
 
-import Data.Maybe (fromJust)
-import Data.Serialize (encode)
+import           Data.Maybe                     (fromJust)
+import           Data.Serialize                 (encode)
 
-import Network.Haskoin.Crypto
-import Network.Haskoin.Node
-import Network.Haskoin.Util
+import           Network.Haskoin.Crypto
+import           Network.Haskoin.Node
+import           Network.Haskoin.Util
 
 tests :: [Test]
 tests =

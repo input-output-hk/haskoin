@@ -12,29 +12,26 @@ module Network.Haskoin.Crypto.ECDSA
 , decodeStrictSig
 ) where
 
-import Numeric (showHex)
+import           Numeric                     (showHex)
 
-import Control.DeepSeq (NFData, rnf)
-import Control.Monad (when, unless, guard)
-import Control.Monad.Trans (lift)
-import qualified Control.Monad.State as S
-    ( StateT
-    , evalStateT
-    , get, put
-    )
+import           Control.DeepSeq             (NFData, rnf)
+import           Control.Monad               (guard, unless, when)
+import qualified Control.Monad.State         as S (StateT, evalStateT, get, put)
+import           Control.Monad.Trans         (lift)
 
-import Data.Maybe (fromMaybe)
-import Data.Serialize (Serialize, get, put)
-import Data.Serialize.Put (putByteString, putByteString)
-import Data.Serialize.Get (getWord8, lookAhead, getByteString)
-import Data.ByteString (ByteString)
-import System.Entropy (getEntropy)
+import           Data.ByteString             (ByteString)
+import           Data.Maybe                  (fromMaybe)
+import           Data.Serialize              (Serialize, get, put)
+import           Data.Serialize.Get          (getByteString, getWord8,
+                                              lookAhead)
+import           Data.Serialize.Put          (putByteString, putByteString)
+import           System.Entropy              (getEntropy)
 
-import qualified Crypto.Secp256k1 as EC
+import qualified Crypto.Secp256k1            as EC
 
-import Network.Haskoin.Constants
-import Network.Haskoin.Crypto.Hash
-import Network.Haskoin.Crypto.Keys
+import           Network.Haskoin.Constants
+import           Network.Haskoin.Crypto.Hash
+import           Network.Haskoin.Crypto.Keys
 
 -- | Internal state of the 'SecretT' monad
 type SecretState m = (WorkingState, Int -> m ByteString)

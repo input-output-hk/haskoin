@@ -11,20 +11,15 @@ module Network.Haskoin.Test.Block
 , ArbitraryMerkleBlock(..)
 ) where
 
-import Test.QuickCheck
-    ( Arbitrary
-    , arbitrary
-    , choose
-    , vectorOf
-    , listOf1
-    )
+import           Test.QuickCheck                  (Arbitrary, arbitrary, choose,
+                                                   listOf1, vectorOf)
 
-import Network.Haskoin.Test.Crypto
-import Network.Haskoin.Test.Transaction
-import Network.Haskoin.Test.Node
+import           Network.Haskoin.Test.Crypto
+import           Network.Haskoin.Test.Node
+import           Network.Haskoin.Test.Transaction
 
-import Network.Haskoin.Block.Types
-import Network.Haskoin.Block.Merkle
+import           Network.Haskoin.Block.Merkle
+import           Network.Haskoin.Block.Types
 
 -- | Arbitrary Block
 newtype ArbitraryBlock = ArbitraryBlock Block

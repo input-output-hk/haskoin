@@ -1,19 +1,20 @@
 module Network.Haskoin.Crypto.Keys.Tests (tests) where
 
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Test.Framework                       (Test, testGroup)
+import           Test.Framework.Providers.QuickCheck2 (testProperty)
 
-import Data.String (fromString)
-import Data.String.Conversions (cs)
-import qualified Data.ByteString as BS (length, index)
-import Data.Serialize (encode, runGet, runPut)
+import qualified Data.ByteString                      as BS (index, length)
+import           Data.Serialize                       (encode, runGet, runPut)
+import           Data.String                          (fromString)
+import           Data.String.Conversions              (cs)
 
-import qualified Crypto.Secp256k1 as EC
+import qualified Crypto.Secp256k1                     as EC
 
-import Network.Haskoin.Test
-import Network.Haskoin.Crypto
-import Network.Haskoin.Util
-import Network.Haskoin.Internals (PubKeyI(..), PrvKeyI(..))
+import           Network.Haskoin.Crypto
+import           Network.Haskoin.Internals            (PrvKeyI (..),
+                                                       PubKeyI (..))
+import           Network.Haskoin.Test
+import           Network.Haskoin.Util
 
 tests :: [Test]
 tests =

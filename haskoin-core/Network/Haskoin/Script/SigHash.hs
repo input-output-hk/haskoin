@@ -64,34 +64,34 @@ data SigHash
     deriving (Eq, Show, Read)
 
 instance NFData SigHash where
-    rnf (SigAll a) = rnf a
-    rnf (SigNone a) = rnf a
-    rnf (SigSingle a) = rnf a
+    rnf (SigAll a)       = rnf a
+    rnf (SigNone a)      = rnf a
+    rnf (SigSingle a)    = rnf a
     rnf (SigUnknown a c) = rnf a `seq` rnf c
 
 -- | Returns True if the 'SigHash' has the value SigAll.
 isSigAll :: SigHash -> Bool
 isSigAll sh = case sh of
     SigAll _ -> True
-    _ -> False
+    _        -> False
 
 -- | Returns True if the 'SigHash' has the value SigNone.
 isSigNone :: SigHash -> Bool
 isSigNone sh = case sh of
     SigNone _ -> True
-    _ -> False
+    _         -> False
 
 -- | Returns True if the 'SigHash' has the value SigSingle.
 isSigSingle :: SigHash -> Bool
 isSigSingle sh = case sh of
     SigSingle _ -> True
-    _ -> False
+    _           -> False
 
 -- | Returns True if the 'SigHash' has the value SigUnknown.
 isSigUnknown :: SigHash -> Bool
 isSigUnknown sh = case sh of
     SigUnknown _ _ -> True
-    _ -> False
+    _              -> False
 
 instance Serialize SigHash where
 
@@ -104,9 +104,9 @@ instance Serialize SigHash where
                 _ -> SigUnknown acp w
 
     put sh = putWord8 $ case sh of
-        SigAll acp -> if acp then 0x81 else 0x01
-        SigNone acp -> if acp then 0x82 else 0x02
-        SigSingle acp -> if acp then 0x83 else 0x03
+        SigAll acp     -> if acp then 0x81 else 0x01
+        SigNone acp    -> if acp then 0x82 else 0x02
+        SigSingle acp  -> if acp then 0x83 else 0x03
         SigUnknown _ w -> w
 
 instance ToJSON SigHash where

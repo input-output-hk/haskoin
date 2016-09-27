@@ -1,18 +1,18 @@
 module Network.Haskoin.Block.Tests (tests) where
 
-import Control.Arrow
+import           Control.Arrow
 
-import Data.String (fromString)
-import Data.String.Conversions (cs)
-import Test.QuickCheck (Property, (==>))
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Data.String                          (fromString)
+import           Data.String.Conversions              (cs)
+import           Test.Framework                       (Test, testGroup)
+import           Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Test.QuickCheck                      (Property, (==>))
 
-import Data.Maybe (fromJust)
+import           Data.Maybe                           (fromJust)
 
-import Network.Haskoin.Block
-import Network.Haskoin.Util
-import Network.Haskoin.Test
+import           Network.Haskoin.Block
+import           Network.Haskoin.Test
+import           Network.Haskoin.Util
 
 tests :: [Test]
 tests =

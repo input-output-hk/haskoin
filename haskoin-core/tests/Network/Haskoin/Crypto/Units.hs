@@ -1,23 +1,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Haskoin.Crypto.Units (tests) where
 
-import Test.HUnit (Assertion, assertBool)
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.HUnit (testCase)
+import           Test.Framework                 (Test, testGroup)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (Assertion, assertBool)
 
-import Control.Monad (replicateM_)
-import Control.Monad.Trans (liftIO)
+import           Control.Monad                  (replicateM_)
+import           Control.Monad.Trans            (liftIO)
 
-import Data.Maybe (fromJust, isJust, isNothing)
-import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as C (pack)
-import Data.Serialize (put, runPut)
+import           Data.ByteString                (ByteString)
+import qualified Data.ByteString.Char8          as C (pack)
+import           Data.Maybe                     (fromJust, isJust, isNothing)
+import           Data.Serialize                 (put, runPut)
 
-import qualified Crypto.Secp256k1 as EC (SecKey, exportCompactSig)
+import qualified Crypto.Secp256k1               as EC (SecKey, exportCompactSig)
 
-import Network.Haskoin.Crypto
-import Network.Haskoin.Util
-import Network.Haskoin.Internals (PrvKeyI(..), PubKeyI(..), Signature(..))
+import           Network.Haskoin.Crypto
+import           Network.Haskoin.Internals      (PrvKeyI (..), PubKeyI (..),
+                                                 Signature (..))
+import           Network.Haskoin.Util
 
 -- Unit tests copied from bitcoind implementation
 -- https://github.com/bitcoin/bitcoin/blob/master/src/test/key_tests.cpp

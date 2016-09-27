@@ -35,8 +35,16 @@ import           Network.Haskoin.Node.HeaderTree
 import           Network.Haskoin.Node.Peer
 import           Network.Haskoin.Node.STM
 import           Network.Haskoin.Transaction
-import           Network.Haskoin.Wallet.Accounts
-import           Network.Haskoin.Wallet.Block
+import           Network.Haskoin.Wallet.Accounts    (accounts, addAccountKeys,
+                                                     addressList, firstAddrTime,
+                                                     generateAddrs, getAccount,
+                                                     getAddress, getBloomFilter,
+                                                     isCompleteAccount,
+                                                     newAccount, renameAccount,
+                                                     setAccountGap,
+                                                     setAddrLabel,
+                                                     unusedAddresses)
+import           Network.Haskoin.Wallet.Block       (blockTxs, mainChain)
 import           Network.Haskoin.Wallet.Model
 import           Network.Haskoin.Wallet.Settings
 import           Network.Haskoin.Wallet.Transaction
@@ -76,7 +84,7 @@ runNode action = do
     nodeStateM <- asks handlerNodeState
     case nodeStateM of
         Just nodeState -> lift $ runNodeT action nodeState
-        _ -> error "runNode: No node state available"
+        _              -> error "runNode: No node state available"
 
 {- Server Handlers -}
 
@@ -569,4 +577,3 @@ adjustFCTime ts = fromInteger $ max 0 $ toInteger ts - 86400 * 7
 
 format :: String -> Text
 format str = pack $ "[ZeroMQ] " ++ str
-

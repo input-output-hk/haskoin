@@ -1,6 +1,6 @@
 module Network.Haskoin.Node.Tests (tests) where
 
-import Test.Framework (Test, testGroup)
+import           Test.Framework (Test, testGroup)
 -- import Test.Framework.Providers.QuickCheck2 (testProperty)
 
 tests :: [Test]

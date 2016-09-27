@@ -167,10 +167,10 @@ module Network.Haskoin.Crypto
 
 ) where
 
-import Network.Haskoin.Crypto.ECDSA
-import Network.Haskoin.Crypto.Keys
-import Network.Haskoin.Crypto.Hash
-import Network.Haskoin.Crypto.Base58
-import Network.Haskoin.Crypto.Mnemonic
-import Network.Haskoin.Crypto.ExtendedKeys
+import           Network.Haskoin.Crypto.Base58
+import           Network.Haskoin.Crypto.ECDSA
+import           Network.Haskoin.Crypto.ExtendedKeys
+import           Network.Haskoin.Crypto.Hash
+import           Network.Haskoin.Crypto.Keys
+import           Network.Haskoin.Crypto.Mnemonic
 

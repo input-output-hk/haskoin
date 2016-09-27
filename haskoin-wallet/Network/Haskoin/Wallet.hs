@@ -99,10 +99,10 @@ module Network.Haskoin.Wallet
 , resetRescan
 ) where
 
-import Network.Haskoin.Wallet.Client
-import Network.Haskoin.Wallet.Server
-import Network.Haskoin.Wallet.Settings
-import Network.Haskoin.Wallet.Types
-import Network.Haskoin.Wallet.Accounts
-import Network.Haskoin.Wallet.Transaction
+import           Network.Haskoin.Wallet.Accounts
+import           Network.Haskoin.Wallet.Client
+import           Network.Haskoin.Wallet.Server
+import           Network.Haskoin.Wallet.Settings
+import           Network.Haskoin.Wallet.Transaction
+import           Network.Haskoin.Wallet.Types
 

@@ -1,15 +1,15 @@
 module Network.Haskoin.Util.Tests (tests) where
 
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Test.Framework                       (Test, testGroup)
+import           Test.Framework.Providers.QuickCheck2 (testProperty)
 
-import Data.List (permutations)
-import Data.Maybe (fromJust, catMaybes)
-import Data.Foldable (toList)
-import qualified Data.Sequence as Seq (update, fromList)
+import           Data.Foldable                        (toList)
+import           Data.List                            (permutations)
+import           Data.Maybe                           (catMaybes, fromJust)
+import qualified Data.Sequence                        as Seq (fromList, update)
 
-import Network.Haskoin.Test
-import Network.Haskoin.Util
+import           Network.Haskoin.Test
+import           Network.Haskoin.Util
 
 tests :: [Test]
 tests =

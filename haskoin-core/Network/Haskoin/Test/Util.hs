@@ -4,18 +4,13 @@ module Network.Haskoin.Test.Util
 , ArbitraryUTCTime(..)
 ) where
 
-import Test.QuickCheck
-    ( Arbitrary
-    , Gen
-    , arbitrary
-    , choose
-    , listOf1
-    )
+import           Test.QuickCheck       (Arbitrary, Gen, arbitrary, choose,
+                                        listOf1)
 
-import Data.Word (Word32)
-import Data.Time.Clock (UTCTime(..))
-import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
-import qualified Data.ByteString as BS (ByteString, pack, drop)
+import qualified Data.ByteString       as BS (ByteString, drop, pack)
+import           Data.Time.Clock       (UTCTime (..))
+import           Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import           Data.Word             (Word32)
 
 -- | Arbitrary strict ByteString
 data ArbitraryByteString = ArbitraryByteString BS.ByteString

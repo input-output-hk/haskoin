@@ -25,23 +25,17 @@ module Network.Haskoin.Test.Node
 , ArbitraryMessageCommand(..)
 ) where
 
-import Test.QuickCheck
-    ( Arbitrary
-    , arbitrary
-    , elements
-    , listOf1
-    , oneof
-    , choose
-    , vectorOf
-    )
+import           Test.QuickCheck             (Arbitrary, arbitrary, choose,
+                                              elements, listOf1, oneof,
+                                              vectorOf)
 
-import Data.Word (Word16, Word32)
-import qualified Data.ByteString as BS (pack, empty)
+import qualified Data.ByteString             as BS (empty, pack)
+import           Data.Word                   (Word16, Word32)
 
-import Network.Socket (SockAddr(..))
+import           Network.Socket              (SockAddr (..))
 
-import Network.Haskoin.Test.Crypto
-import Network.Haskoin.Node
+import           Network.Haskoin.Node
+import           Network.Haskoin.Test.Crypto
 
 -- | Arbitrary VarInt
 newtype ArbitraryVarInt = ArbitraryVarInt VarInt

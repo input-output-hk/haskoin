@@ -19,20 +19,20 @@ module Network.Haskoin.Crypto.Mnemonic
 , getBits
 ) where
 
-import Control.Monad (when)
-import qualified Crypto.Hash.SHA256 as SHA256
-import Crypto.PBKDF.ByteString (sha512PBKDF2)
-import Data.Bits ((.&.), shiftL, shiftR)
-import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as C (unwords, words)
-import Data.String.Conversions (cs)
-import qualified Data.ByteString as BS
-import qualified Data.Map.Strict as M
-import Data.List
-import Data.Maybe
-import Data.Vector ((!), Vector)
-import qualified Data.Vector as V
-import Network.Haskoin.Util
+import           Control.Monad           (when)
+import qualified Crypto.Hash.SHA256      as SHA256
+import           Crypto.PBKDF.ByteString (sha512PBKDF2)
+import           Data.Bits               (shiftL, shiftR, (.&.))
+import           Data.ByteString         (ByteString)
+import qualified Data.ByteString         as BS
+import qualified Data.ByteString.Char8   as C (unwords, words)
+import           Data.List
+import qualified Data.Map.Strict         as M
+import           Data.Maybe
+import           Data.String.Conversions (cs)
+import           Data.Vector             (Vector, (!))
+import qualified Data.Vector             as V
+import           Network.Haskoin.Util
 
 type Entropy = ByteString
 type Mnemonic = ByteString

@@ -1,19 +1,19 @@
 module Network.Haskoin.Transaction.Tests (tests) where
 
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Test.Framework                       (Test, testGroup)
+import           Test.Framework.Providers.QuickCheck2 (testProperty)
 
-import Data.Serialize (encode)
-import Data.String (fromString)
-import Data.String.Conversions (cs)
-import Data.Word (Word64)
-import qualified Data.ByteString as BS (length)
+import qualified Data.ByteString                      as BS (length)
+import           Data.Serialize                       (encode)
+import           Data.String                          (fromString)
+import           Data.String.Conversions              (cs)
+import           Data.Word                            (Word64)
 
-import Network.Haskoin.Test
-import Network.Haskoin.Transaction
-import Network.Haskoin.Script
-import Network.Haskoin.Crypto
-import Network.Haskoin.Util
+import           Network.Haskoin.Crypto
+import           Network.Haskoin.Script
+import           Network.Haskoin.Test
+import           Network.Haskoin.Transaction
+import           Network.Haskoin.Util
 
 tests :: [Test]
 tests =
@@ -69,7 +69,7 @@ testGuessSize (ArbitraryAddrOnlyTx tx) =
     pki      = length $ filter isSpendPKHash ins
     msi      = concat $ map shData ins
     shData (ScriptHashInput _ (PayMulSig keys r)) = [(r,length keys)]
-    shData _ = []
+    shData _                                      = []
     out      = map (fromRight . decodeOutputBS . scriptOutput) $ txOut tx
     pkout    = length $ filter isPayPKHash out
     msout    = length $ filter isPayScriptHash out

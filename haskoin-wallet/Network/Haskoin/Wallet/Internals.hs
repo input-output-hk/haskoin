@@ -17,15 +17,15 @@ module Network.Haskoin.Wallet.Internals
 , module Network.Haskoin.Wallet.Model
 ) where
 
-import Network.Haskoin.Wallet
-import Network.Haskoin.Wallet.Accounts
-import Network.Haskoin.Wallet.Transaction
-import Network.Haskoin.Wallet.Client
-import Network.Haskoin.Wallet.Client.Commands
-import Network.Haskoin.Wallet.Server
-import Network.Haskoin.Wallet.Server.Handler
-import Network.Haskoin.Wallet.Settings
-import Network.Haskoin.Wallet.Database
-import Network.Haskoin.Wallet.Types
-import Network.Haskoin.Wallet.Model
+import           Network.Haskoin.Wallet
+import           Network.Haskoin.Wallet.Accounts
+import           Network.Haskoin.Wallet.Client
+import           Network.Haskoin.Wallet.Client.Commands
+import           Network.Haskoin.Wallet.Database
+import           Network.Haskoin.Wallet.Model
+import           Network.Haskoin.Wallet.Server
+import           Network.Haskoin.Wallet.Server.Handler
+import           Network.Haskoin.Wallet.Settings
+import           Network.Haskoin.Wallet.Transaction
+import           Network.Haskoin.Wallet.Types
 

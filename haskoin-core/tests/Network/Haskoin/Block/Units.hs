@@ -1,16 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Haskoin.Block.Units (tests) where
 
-import Data.ByteString (ByteString)
+import           Data.ByteString                (ByteString)
 
-import Test.HUnit (Assertion, assertBool)
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.HUnit (testCase)
+import           Test.Framework                 (Test, testGroup)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (Assertion, assertBool)
 
-import Data.Maybe (fromJust)
+import           Data.Maybe                     (fromJust)
 
-import Network.Haskoin.Block
-import Network.Haskoin.Transaction
+import           Network.Haskoin.Block
+import           Network.Haskoin.Transaction
 
 tests :: [Test]
 tests =

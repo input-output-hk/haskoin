@@ -1,27 +1,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Haskoin.Crypto.Mnemonic.Tests (tests) where
 
-import Test.QuickCheck (Arbitrary, Property, arbitrary, choose, (==>))
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Test.Framework                       (Test, testGroup)
+import           Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Test.QuickCheck                      (Arbitrary, Property,
+                                                       arbitrary, choose, (==>))
 
-import Data.Bits ((.&.), shiftR)
-import Data.Word (Word32, Word64)
-import qualified Data.ByteString as BS
-    ( ByteString
-    , empty
-    , append
-    , concat
-    , length
-    , last
-    )
-import qualified Data.ByteString.Char8 as C (words)
-import Data.Serialize (Serialize, encode)
+import           Data.Bits                            (shiftR, (.&.))
+import qualified Data.ByteString                      as BS (ByteString, append,
+                                                             concat, empty,
+                                                             last, length)
+import qualified Data.ByteString.Char8                as C (words)
+import           Data.Serialize                       (Serialize, encode)
+import           Data.Word                            (Word32, Word64)
 
-import Network.Haskoin.Test
-import Network.Haskoin.Crypto
-import Network.Haskoin.Util
-import Network.Haskoin.Internals (fromMnemonic, getBits)
+import           Network.Haskoin.Crypto
+import           Network.Haskoin.Internals            (fromMnemonic, getBits)
+import           Network.Haskoin.Test
+import           Network.Haskoin.Util
 
 
 tests :: [Test]

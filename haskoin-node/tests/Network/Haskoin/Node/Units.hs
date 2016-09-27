@@ -237,7 +237,7 @@ foldBlock :: Maybe NodeBlock -> [(Word32, Word32)] -> [NodeBlock]
 foldBlock nM =
     foldl f (maybeToList nM)
   where
-    f [] _ = [genesisBlock]
+    f [] _                = [genesisBlock]
     f ls@(l:_) (n, chain) = mockBlock l chain n : ls
 
 mockBlock :: NodeBlock -> Word32 -> Word32 -> NodeBlock

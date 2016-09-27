@@ -67,7 +67,7 @@ module Network.Haskoin.Script
 , SigCheck
 ) where
 
-import Network.Haskoin.Script.Types
-import Network.Haskoin.Script.Parser
-import Network.Haskoin.Script.SigHash
-import Network.Haskoin.Script.Evaluator
+import           Network.Haskoin.Script.Evaluator
+import           Network.Haskoin.Script.Parser
+import           Network.Haskoin.Script.SigHash
+import           Network.Haskoin.Script.Types

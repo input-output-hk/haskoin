@@ -19,47 +19,27 @@ module Network.Haskoin.Node.Types
 , MessageCommand(..)
 ) where
 
-import Control.DeepSeq (NFData, rnf)
-import Control.Monad (replicateM, liftM2, forM_, unless)
+import           Control.DeepSeq             (NFData, rnf)
+import           Control.Monad               (forM_, liftM2, replicateM, unless)
 
-import Data.Word (Word32, Word64)
-import Data.Serialize (Serialize, get, put)
-import Data.Serialize.Get
-    ( Get
-    , getWord8
-    , getWord16le
-    , getWord16be
-    , getWord32be
-    , getWord32host
-    , getWord32le
-    , getWord64le
-    , getByteString
-    , isEmpty
-    )
-import Data.Serialize.Put
-    ( Put
-    , putWord8
-    , putWord16le
-    , putWord16be
-    , putWord32be
-    , putWord32host
-    , putWord32le
-    , putWord64le
-    , putByteString
-    )
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-    ( length
-    , takeWhile
-    , empty
-    , null
-    , take
-    )
-import Data.ByteString.Char8 as C (replicate)
-import Data.String.Conversions (cs)
-import Network.Socket (SockAddr (SockAddrInet, SockAddrInet6))
+import           Data.ByteString             (ByteString)
+import qualified Data.ByteString             as BS (empty, length, null, take,
+                                                    takeWhile)
+import           Data.ByteString.Char8       as C (replicate)
+import           Data.Serialize              (Serialize, get, put)
+import           Data.Serialize.Get          (Get, getByteString, getWord16be,
+                                              getWord16le, getWord32be,
+                                              getWord32host, getWord32le,
+                                              getWord64le, getWord8, isEmpty)
+import           Data.Serialize.Put          (Put, putByteString, putWord16be,
+                                              putWord16le, putWord32be,
+                                              putWord32host, putWord32le,
+                                              putWord64le, putWord8)
+import           Data.String.Conversions     (cs)
+import           Data.Word                   (Word32, Word64)
+import           Network.Socket              (SockAddr (SockAddrInet, SockAddrInet6))
 
-import Network.Haskoin.Crypto.Hash
+import           Network.Haskoin.Crypto.Hash
 
 -- | Network address with a timestamp
 type NetworkAddressTime = (Word32, NetworkAddress)

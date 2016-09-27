@@ -516,7 +516,7 @@ toGeneric p = case p of
     go f p = case p of
         next :/ i -> go (f . (:/ i)) $ toGeneric next
         next :| i -> go (f . (:| i)) $ toGeneric next
-        _ -> f
+        _         -> f
 
 -- | Derive a private key from a derivation path
 derivePath :: DerivPathI t -> XPrvKey -> XPrvKey
@@ -526,7 +526,7 @@ derivePath = go id
     go f p = case p of
         next :| i -> go (f . flip hardSubKey i) next
         next :/ i -> go (f . flip prvSubKey i) next
-        _ -> f
+        _         -> f
 
 -- | Derive a public key from a soft derivation path
 derivePubPath :: SoftPath -> XPubKey -> XPubKey
@@ -535,7 +535,7 @@ derivePubPath = go id
     -- Build the full derivation function starting from the end
     go f p = case p of
         next :/ i -> go (f . flip pubSubKey i) next
-        _ -> f
+        _         -> f
 
 -- TODO: Test
 instance Show DerivPath where
@@ -661,7 +661,7 @@ parseBip32PathIndex :: String -> Maybe Bip32PathIndex
 parseBip32PathIndex segment = case reads segment of
     [(i, "" )] -> guard (is31Bit i) >> ( return $ Bip32SoftIndex i )
     [(i, "'")] -> guard (is31Bit i) >> ( return $ Bip32HardIndex i )
-    _ -> Nothing
+    _          -> Nothing
 
 
 data Bip32PathIndex = Bip32HardIndex KeyIndex | Bip32SoftIndex KeyIndex
@@ -690,10 +690,10 @@ data XKey = XPrv { getXPrvKey :: !XPrvKey }
 -- return an error value.
 applyPath :: ParsedPath -> XKey -> Either String XKey
 applyPath path key = case (path, key) of
-    (ParsedPrv _, XPrv k) -> return $ XPrv $ derivPrvF k
-    (ParsedPrv _, XPub _) -> Left "applyPath: Invalid public key"
-    (ParsedPub _, XPrv k) -> return $ XPub $ deriveXPubKey $ derivPrvF k
-    (ParsedPub _, XPub k) -> derivPubFE >>= \f -> return $ XPub $ f k
+    (ParsedPrv _, XPrv k)   -> return $ XPrv $ derivPrvF k
+    (ParsedPrv _, XPub _)   -> Left "applyPath: Invalid public key"
+    (ParsedPub _, XPrv k)   -> return $ XPub $ deriveXPubKey $ derivPrvF k
+    (ParsedPub _, XPub k)   -> derivPubFE >>= \f -> return $ XPub $ f k
     -- For empty parsed paths, we take a hint from the provided key
     (ParsedEmpty _, XPrv k) -> return $ XPrv $ derivPrvF k
     (ParsedEmpty _, XPub k) -> derivPubFE >>= \f -> return $ XPub $ f k

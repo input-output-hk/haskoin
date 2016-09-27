@@ -6,28 +6,16 @@ module Network.Haskoin.Script.Types
 , opPushData
 ) where
 
-import Control.DeepSeq (NFData, rnf)
-import Control.Monad (unless, forM_)
+import           Control.DeepSeq    (NFData, rnf)
+import           Control.Monad      (forM_, unless)
 
-import Data.Word (Word8)
-import Data.Serialize (Serialize, get, put)
-import Data.Serialize.Get
-    ( isEmpty
-    , getWord8
-    , getWord16le
-    , getWord32le
-    , getByteString
-    )
-import Data.Serialize.Put
-    ( putWord8
-    , putWord16le
-    , putWord32le
-    , putByteString
-    )
-import qualified Data.ByteString as BS
-    ( ByteString
-    , length
-    )
+import qualified Data.ByteString    as BS (ByteString, length)
+import           Data.Serialize     (Serialize, get, put)
+import           Data.Serialize.Get (getByteString, getWord16le, getWord32le,
+                                     getWord8, isEmpty)
+import           Data.Serialize.Put (putByteString, putWord16le, putWord32le,
+                                     putWord8)
+import           Data.Word          (Word8)
 
 -- | Data type representing a transaction script. Scripts are defined as lists
 -- of script operators 'ScriptOp'. Scripts are used to:
@@ -192,9 +180,9 @@ data ScriptOp
 
 
 instance NFData ScriptOp where
-    rnf (OP_PUSHDATA b t) = rnf b `seq` rnf t
+    rnf (OP_PUSHDATA b t)    = rnf b `seq` rnf t
     rnf (OP_INVALIDOPCODE c) = rnf c
-    rnf x = x `seq` ()
+    rnf x                    = x `seq` ()
 
 
 instance Serialize ScriptOp where

@@ -27,29 +27,23 @@ module Network.Haskoin.Test.Crypto
 
 ) where
 
-import Test.QuickCheck
-    ( Arbitrary
-    , Gen
-    , arbitrary
-    , oneof
-    , vectorOf
-    , listOf
-    )
+import           Test.QuickCheck                     (Arbitrary, Gen, arbitrary,
+                                                      listOf, oneof, vectorOf)
 
-import Crypto.Secp256k1 ()
+import           Crypto.Secp256k1                    ()
 
-import Data.Bits (clearBit)
-import qualified Data.ByteString as BS (pack)
-import Data.Maybe (fromMaybe)
-import Data.Word (Word32)
+import           Data.Bits                           (clearBit)
+import qualified Data.ByteString                     as BS (pack)
+import           Data.Maybe                          (fromMaybe)
+import           Data.Word                           (Word32)
 
-import Network.Haskoin.Test.Util
-import Network.Haskoin.Crypto.ECDSA
-import Network.Haskoin.Crypto.Hash
-import Network.Haskoin.Crypto.Keys
-import Network.Haskoin.Crypto.Base58
-import Network.Haskoin.Crypto.ExtendedKeys
-import Data.List (foldl')
+import           Data.List                           (foldl')
+import           Network.Haskoin.Crypto.Base58
+import           Network.Haskoin.Crypto.ECDSA
+import           Network.Haskoin.Crypto.ExtendedKeys
+import           Network.Haskoin.Crypto.Hash
+import           Network.Haskoin.Crypto.Keys
+import           Network.Haskoin.Test.Util
 
 newtype ArbitraryHash160 = ArbitraryHash160 Hash160
     deriving (Eq, Show, Read)
@@ -218,7 +212,7 @@ data ArbitraryBip32PathIndex = ArbitraryBip32PathIndex Bip32PathIndex
     deriving (Show,Eq)
 
 instance Arbitrary ArbitraryBip32PathIndex where
-    arbitrary = 
+    arbitrary =
         ArbitraryBip32PathIndex <$> oneof [soft, hard]
         where soft = Bip32SoftIndex <$> genIndex
               hard = Bip32HardIndex <$> genIndex
@@ -241,16 +235,16 @@ instance Arbitrary ArbitrarySoftPath where
 data ArbitraryDerivPath = ArbitraryDerivPath DerivPath
     deriving (Show, Eq)
 
-instance Arbitrary ArbitraryDerivPath where    
-    arbitrary = ArbitraryDerivPath . concatBip32Segments . map (\(ArbitraryBip32PathIndex i) -> i ) <$> arbitrary  
-        
+instance Arbitrary ArbitraryDerivPath where
+    arbitrary = ArbitraryDerivPath . concatBip32Segments . map (\(ArbitraryBip32PathIndex i) -> i ) <$> arbitrary
 
-data ArbitraryParsedPath = ArbitraryParsedPath ParsedPath 
+
+data ArbitraryParsedPath = ArbitraryParsedPath ParsedPath
   deriving (Show, Eq)
 
 instance Arbitrary ArbitraryParsedPath where
     arbitrary = do
-        ArbitraryDerivPath d <- arbitrary 
+        ArbitraryDerivPath d <- arbitrary
         ArbitraryParsedPath <$> oneof [ pure $ ParsedPrv d
                                       , pure $ ParsedPub d
                                       , pure $ ParsedEmpty d ]

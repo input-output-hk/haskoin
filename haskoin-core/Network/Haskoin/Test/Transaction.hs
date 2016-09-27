@@ -20,29 +20,23 @@ module Network.Haskoin.Test.Transaction
 , ArbitraryPartialTxs(..)
 ) where
 
-import Test.QuickCheck
-    ( Arbitrary
-    , arbitrary
-    , vectorOf
-    , oneof
-    , choose
-    , elements
-    )
+import           Test.QuickCheck             (Arbitrary, arbitrary, choose,
+                                              elements, oneof, vectorOf)
 
-import Control.Monad (forM)
+import           Control.Monad               (forM)
 
-import Data.Word (Word64)
-import Data.List (permutations, nubBy, nub)
-import qualified Data.ByteString as BS (empty)
+import qualified Data.ByteString             as BS (empty)
+import           Data.List                   (nub, nubBy, permutations)
+import           Data.Word                   (Word64)
 
-import Network.Haskoin.Test.Crypto
-import Network.Haskoin.Test.Script
+import           Network.Haskoin.Test.Crypto
+import           Network.Haskoin.Test.Script
 
-import Network.Haskoin.Transaction
-import Network.Haskoin.Script
-import Network.Haskoin.Crypto
-import Network.Haskoin.Constants
-import Network.Haskoin.Util
+import           Network.Haskoin.Constants
+import           Network.Haskoin.Crypto
+import           Network.Haskoin.Script
+import           Network.Haskoin.Transaction
+import           Network.Haskoin.Util
 
 newtype ArbitraryTxHash = ArbitraryTxHash TxHash
     deriving (Eq, Show, Read)

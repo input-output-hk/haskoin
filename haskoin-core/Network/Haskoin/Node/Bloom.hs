@@ -11,28 +11,22 @@ module Network.Haskoin.Node.Bloom
 , isBloomFull
 ) where
 
-import Control.Monad (replicateM, forM_)
-import Control.DeepSeq (NFData, rnf)
+import           Control.DeepSeq            (NFData, rnf)
+import           Control.Monad              (forM_, replicateM)
 
-import Data.Word
-import Data.Bits
-import Data.Hash.Murmur (murmur3)
-import Data.Serialize (Serialize, get, put)
-import Data.Serialize.Get
-    ( getWord8
-    , getWord32le
-    , getByteString
-    )
-import Data.Serialize.Put
-    ( putWord8
-    , putWord32le
-    , putByteString
-    )
-import qualified Data.Foldable as F
-import qualified Data.Sequence as S
-import qualified Data.ByteString as BS
+import           Data.Bits
+import qualified Data.ByteString            as BS
+import qualified Data.Foldable              as F
+import           Data.Hash.Murmur           (murmur3)
+import qualified Data.Sequence              as S
+import           Data.Serialize             (Serialize, get, put)
+import           Data.Serialize.Get         (getByteString, getWord32le,
+                                             getWord8)
+import           Data.Serialize.Put         (putByteString, putWord32le,
+                                             putWord8)
+import           Data.Word
 
-import Network.Haskoin.Node.Types
+import           Network.Haskoin.Node.Types
 
 -- 20,000 items with fp rate < 0.1% or 10,000 items and <0.0001%
 maxBloomSize :: Int

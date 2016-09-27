@@ -6,55 +6,46 @@ module Network.Haskoin.Script.Tests
 , runTests
 ) where
 
-import Test.QuickCheck.Property (Property, (==>))
-import Test.Framework (Test, testGroup, buildTest)
-import Test.Framework.Providers.HUnit (testCase)
-import Test.Framework.Providers.QuickCheck2 (testProperty)
-import Test.Framework.Runners.Console (defaultMainWithArgs)
-import qualified Test.HUnit as HUnit (assertFailure, assertBool)
+import           Test.Framework                       (Test, buildTest,
+                                                       testGroup)
+import           Test.Framework.Providers.HUnit       (testCase)
+import           Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Test.Framework.Runners.Console       (defaultMainWithArgs)
+import qualified Test.HUnit                           as HUnit (assertBool,
+                                                                assertFailure)
+import           Test.QuickCheck.Property             (Property, (==>))
 
-import Control.Monad (when)
+import           Control.Monad                        (when)
 
-import Data.Bits (testBit)
-import Data.List (isPrefixOf)
-import Data.List.Split ( splitOn )
-import Data.Char (ord)
-import Data.Maybe (catMaybes, isNothing)
-import Data.Int (Int64)
-import Data.Word (Word8, Word32)
-import qualified Data.Aeson as A (decode)
-import qualified Data.ByteString.Lazy.Char8 as C (readFile)
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-    ( singleton
-    , length
-    , tail
-    , head
-    , pack
-    , unpack
-    , empty
-    )
-import qualified Data.ByteString.Char8 as C (putStrLn)
-import Data.Serialize (decode, encode)
+import qualified Data.Aeson                           as A (decode)
+import           Data.Bits                            (testBit)
+import           Data.ByteString                      (ByteString)
+import qualified Data.ByteString                      as BS (empty, head,
+                                                             length, pack,
+                                                             singleton, tail,
+                                                             unpack)
+import qualified Data.ByteString.Char8                as C (putStrLn)
+import qualified Data.ByteString.Lazy.Char8           as C (readFile)
+import           Data.Char                            (ord)
+import           Data.Int                             (Int64)
+import           Data.List                            (isPrefixOf)
+import           Data.List.Split                      (splitOn)
+import           Data.Maybe                           (catMaybes, isNothing)
+import           Data.Serialize                       (decode, encode)
+import           Data.Word                            (Word32, Word8)
 
-import Numeric (readHex)
-import Text.Read (readMaybe)
+import           Numeric                              (readHex)
+import           Text.Read                            (readMaybe)
 
-import Network.Haskoin.Test
-import Network.Haskoin.Transaction
-import Network.Haskoin.Script
-import Network.Haskoin.Crypto
-import Network.Haskoin.Util
-import Network.Haskoin.Internals
-    ( Flag
-    , runStack
-    , dumpStack
-    , decodeInt
-    , encodeInt
-    , decodeBool
-    , encodeBool
-    , execScript
-    )
+import           Network.Haskoin.Crypto
+import           Network.Haskoin.Internals            (Flag, decodeBool,
+                                                       decodeInt, dumpStack,
+                                                       encodeBool, encodeInt,
+                                                       execScript, runStack)
+import           Network.Haskoin.Script
+import           Network.Haskoin.Test
+import           Network.Haskoin.Transaction
+import           Network.Haskoin.Util
 
 tests :: [Test]
 tests =
@@ -183,14 +174,14 @@ parseHex' :: String -> Maybe [Word8]
 parseHex' (a:b:xs) = case readHex $ [a, b] :: [(Integer, String)] of
                       [(i, "")] -> case parseHex' xs of
                                     Just ops -> Just $ fromIntegral i:ops
-                                    Nothing -> Nothing
+                                    Nothing  -> Nothing
                       _ -> Nothing
 parseHex' [_] = Nothing
 parseHex' [] = Just []
 
 parseFlags :: String -> [ Flag ]
 parseFlags "" = []
-parseFlags s = map read . splitOn "," $ s
+parseFlags s  = map read . splitOn "," $ s
 
 parseScript :: String -> Either ParseError Script
 parseScript scriptString =
@@ -203,7 +194,7 @@ parseScript scriptString =
          return script
       where
           decodeScript bytes = case decode bytes of
-            Left e -> Left $ "decode error: " ++ e
+            Left e           -> Left $ "decode error: " ++ e
             Right (Script s) -> Right $ Script s
           parseBytes :: String -> Either ParseError [Word8]
           parseBytes string = concat <$> mapM parseToken (words string)
@@ -211,7 +202,7 @@ parseScript scriptString =
           parseToken tok =
               case alternatives of
                     (ops:_) -> Right ops
-                    _ -> Left $ "unknown token " ++ tok
+                    _       -> Left $ "unknown token " ++ tok
               where alternatives :: [[Word8]]
                     alternatives = catMaybes  [ parseHex
                                               , parseInt
@@ -283,7 +274,7 @@ testFile groupLabel path expected = buildTest $ do
 
                 where run f = f scriptSig scriptPubKey rejectSignature scriptFlags
                       errorMessage = case run execScript of
-                        Left e -> show e
+                        Left e  -> show e
                         Right _ -> " none"
 
 -- | Splits the JSON test into the different parts.  No processing,

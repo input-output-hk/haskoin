@@ -27,21 +27,16 @@ module Network.Haskoin.Test.Script
 , ArbitraryMulSigSHCInput(..)
 ) where
 
-import Test.QuickCheck
-    ( Arbitrary
-    , arbitrary
-    , oneof
-    , choose
-    , vectorOf
-    , elements
-    )
+import           Test.QuickCheck                   (Arbitrary, arbitrary,
+                                                    choose, elements, oneof,
+                                                    vectorOf)
 
-import Data.Bits (testBit)
+import           Data.Bits                         (testBit)
 
-import Network.Haskoin.Transaction.Types
-import Network.Haskoin.Test.Crypto
-import Network.Haskoin.Script
-import Network.Haskoin.Crypto
+import           Network.Haskoin.Crypto
+import           Network.Haskoin.Script
+import           Network.Haskoin.Test.Crypto
+import           Network.Haskoin.Transaction.Types
 
 -- | Arbitrary Script with random script ops
 newtype ArbitraryScript = ArbitraryScript Script

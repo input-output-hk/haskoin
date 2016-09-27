@@ -1,6 +1,6 @@
 module Main where
 
-import Test.Framework (defaultMain)
+import           Test.Framework             (defaultMain)
 
 import qualified Network.Haskoin.Node.Tests (tests)
 import qualified Network.Haskoin.Node.Units (tests)

@@ -337,7 +337,7 @@ buildInput tx i so rdmM sig pub = case (so, rdmM) of
     allSigs = nub $ sig : case decodeInputBS scp of
         Right (ScriptHashInput (SpendMulSig xs) _) -> xs
         Right (RegularInput    (SpendMulSig xs))   -> xs
-        _ -> []
+        _                                          -> []
     out = encodeOutput so
     f (TxSignature x sh) p = verifySig (txSigHash tx out i sh) x p
 

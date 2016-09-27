@@ -129,19 +129,19 @@ getSigningKeys name = do
     go "" _ = error "Need key to sign"
     go str derivM = case xPrvImport str of
         Just k -> case derivM of
-            Just d -> Just $ derivePath d k
+            Just d  -> Just $ derivePath d k
             Nothing -> Just k
         Nothing -> case mnemonicToSeed "" str of
             Right s -> Just (makeXPrvKey s)
-            Left _ -> error "Could not parse key"
+            Left _  -> error "Could not parse key"
 
 checkExists :: String -> Handler Bool
 checkExists name = do
      resE <- sendZmq $ GetAccountR $ pack name
      case (resE :: Either String (WalletResponse JsonAccount)) of
-         Right (ResponseValid _) -> return True
+         Right (ResponseValid _)  -> return True
          Right (ResponseError  _) -> return False
-         Left e -> error e
+         Left e                   -> error e
 
 getKey :: Handler (Maybe Mnemonic, Maybe XPrvKey, Maybe HardPath, Maybe XPubKey)
 getKey = do
@@ -150,7 +150,7 @@ getKey = do
         Haskeline.getPassword (Just '*')
             "Type mnemonic, extended key or leave empty to generate: "
     case i of
-        Just s -> go (cs s) derivM
+        Just s  -> go (cs s) derivM
         Nothing -> error "No action due to EOF"
   where
     go "" derivM = return
@@ -219,7 +219,7 @@ cmdAddKey name = do
                     makeXPrvKey s
                 Left _ -> error "Could not decode mnemonic sentence"
             Nothing -> case masterM of
-                Just m -> deriveXPubKey $ maybe m (`derivePath` m) derivM
+                Just m  -> deriveXPubKey $ maybe m (`derivePath` m) derivM
                 Nothing -> fromMaybe (error "No keys provided") pubM
     resE <- sendZmq (PostAccountKeysR (pack name) [key])
     handleResponse resE $ liftIO . putStr . printAccount
@@ -381,7 +381,7 @@ getHexTx = do
     hexM <- Haskeline.runInputT Haskeline.defaultSettings $
         Haskeline.getInputLine ""
     let txM = case hexM of
-            Nothing -> error "No action due to EOF"
+            Nothing  -> error "No action due to EOF"
             Just hex -> decodeToMaybe =<< decodeHex (cs hex)
     case txM of
         Just tx -> return tx
@@ -456,7 +456,7 @@ cmdRescan timeLs = do
             [] -> Nothing
             str:_ -> case readMaybe str of
                 Nothing -> error "Could not decode time"
-                Just t -> Just t
+                Just t  -> Just t
     resE <- sendZmq (PostNodeR $ NodeActionRescan timeM)
     handleResponse resE $ \(RescanRes ts) ->
         liftIO $ putStrLn $ unwords [ "Timestamp:", show ts]

@@ -1,11 +1,11 @@
 module Main where
 
-import Test.Framework (defaultMain)
+import           Test.Framework               (defaultMain)
 
-import qualified Network.Haskoin.Wallet.Units (tests)
 import qualified Network.Haskoin.Wallet.Tests (tests)
+import qualified Network.Haskoin.Wallet.Units (tests)
 
-import Network.Haskoin.Constants
+import           Network.Haskoin.Constants
 
 main :: IO ()
 main | networkName == "prodnet" = defaultMain

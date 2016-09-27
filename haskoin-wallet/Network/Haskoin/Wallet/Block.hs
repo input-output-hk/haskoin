@@ -1,4 +1,6 @@
-module Network.Haskoin.Wallet.Block where
+module Network.Haskoin.Wallet.Block
+       (blockTxs,
+        mainChain) where
 
 import           Control.Exception                  (throw)
 import           Control.Monad.Catch                (MonadThrow, throwM)

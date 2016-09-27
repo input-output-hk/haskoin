@@ -15,38 +15,28 @@ module Network.Haskoin.Transaction.Types
 , nosigTxHash
 ) where
 
-import Control.DeepSeq (NFData, rnf)
-import Control.Monad (liftM2, replicateM, forM_, mzero, (<=<))
+import           Control.DeepSeq             (NFData, rnf)
+import           Control.Monad               (forM_, liftM2, mzero, replicateM,
+                                              (<=<))
 
-import Data.Aeson (Value(String), FromJSON, ToJSON, parseJSON, toJSON, withText)
-import Data.Word (Word32, Word64)
-import Data.Serialize (Serialize, get, put, encode)
-import Data.Serialize.Get
-    ( getWord32le
-    , getWord64le
-    , getByteString
-    , remaining
-    , lookAhead
-    )
-import Data.Serialize.Put
-    ( putWord32le
-    , putWord64le
-    , putByteString
-    )
-import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
-    ( length
-    , empty
-    , reverse
-    )
-import Data.Maybe (fromMaybe)
-import Data.String (IsString, fromString)
-import Data.String.Conversions (cs)
-import Text.Read (readPrec, parens, lexP, pfail)
-import qualified Text.Read as Read (Lexeme(Ident, String))
-import Network.Haskoin.Util
-import Network.Haskoin.Crypto.Hash
-import Network.Haskoin.Node.Types
+import           Data.Aeson                  (FromJSON, ToJSON, Value (String),
+                                              parseJSON, toJSON, withText)
+import           Data.ByteString             (ByteString)
+import qualified Data.ByteString             as BS (empty, length, reverse)
+import           Data.Maybe                  (fromMaybe)
+import           Data.Serialize              (Serialize, encode, get, put)
+import           Data.Serialize.Get          (getByteString, getWord32le,
+                                              getWord64le, lookAhead, remaining)
+import           Data.Serialize.Put          (putByteString, putWord32le,
+                                              putWord64le)
+import           Data.String                 (IsString, fromString)
+import           Data.String.Conversions     (cs)
+import           Data.Word                   (Word32, Word64)
+import           Network.Haskoin.Crypto.Hash
+import           Network.Haskoin.Node.Types
+import           Network.Haskoin.Util
+import           Text.Read                   (lexP, parens, pfail, readPrec)
+import qualified Text.Read                   as Read (Lexeme (Ident, String))
 
 newtype TxHash = TxHash { getTxHash :: Hash256 }
     deriving (Eq, Ord)

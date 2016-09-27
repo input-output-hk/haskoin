@@ -223,8 +223,8 @@ connectHeaders best bhs ts = runEitherT $ do
             lift $ evalNewChain best nodes
   where
     validChain (a:b:xs) = prevBlock b == headerHash a && validChain (b:xs)
-    validChain [_] = True
-    validChain _ = False
+    validChain [_]      = True
+    validChain _        = False
 
 -- | Returns True if the action is a best chain.
 isBestChain :: BlockChainAction -> Bool

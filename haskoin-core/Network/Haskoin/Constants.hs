@@ -31,35 +31,36 @@ module Network.Haskoin.Constants
 , checkpoints
 ) where
 
-import Data.Bits (shiftR)
-import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as C8 (concat, pack)
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
-import Data.Version (showVersion)
-import Data.Word (Word8, Word32, Word64)
-import Data.LargeWord (Word256)
-import Network.Haskoin.Block.Types
-import System.IO.Unsafe (unsafePerformIO)
-import Paths_haskoin_core (version)
+import           Data.Bits                   (shiftR)
+import           Data.ByteString             (ByteString)
+import qualified Data.ByteString.Char8       as C8 (concat, pack)
+import           Data.IORef                  (IORef, newIORef, readIORef,
+                                              writeIORef)
+import           Data.LargeWord              (Word256)
+import           Data.Version                (showVersion)
+import           Data.Word                   (Word32, Word64, Word8)
+import           Network.Haskoin.Block.Types
+import           Paths_haskoin_core          (version)
+import           System.IO.Unsafe            (unsafePerformIO)
 
 data Network = Network
-    { getNetworkName                :: !String
-    , getAddrPrefix                 :: !Word8
-    , getScriptPrefix               :: !Word8
-    , getSecretPrefix               :: !Word8
-    , getExtPubKeyPrefix            :: !Word32
-    , getExtSecretPrefix            :: !Word32
-    , getNetworkMagic               :: !Word32
-    , getGenesisHeader              :: !BlockHeader
-    , getMaxBlockSize               :: !Int
-    , getMaxSatoshi                 :: !Word64
-    , getHaskoinUserAgent           :: !ByteString
-    , getDefaultPort                :: !Int
-    , getAllowMinDifficultyBlocks   :: !Bool
-    , getPowLimit                   :: !Integer
-    , getTargetTimespan             :: !Word32
-    , getTargetSpacing              :: !Word32
-    , getCheckpoints                :: ![(Int, BlockHash)]
+    { getNetworkName              :: !String
+    , getAddrPrefix               :: !Word8
+    , getScriptPrefix             :: !Word8
+    , getSecretPrefix             :: !Word8
+    , getExtPubKeyPrefix          :: !Word32
+    , getExtSecretPrefix          :: !Word32
+    , getNetworkMagic             :: !Word32
+    , getGenesisHeader            :: !BlockHeader
+    , getMaxBlockSize             :: !Int
+    , getMaxSatoshi               :: !Word64
+    , getHaskoinUserAgent         :: !ByteString
+    , getDefaultPort              :: !Int
+    , getAllowMinDifficultyBlocks :: !Bool
+    , getPowLimit                 :: !Integer
+    , getTargetTimespan           :: !Word32
+    , getTargetSpacing            :: !Word32
+    , getCheckpoints              :: ![(Int, BlockHash)]
     } deriving (Eq, Show, Read)
 
 -- | Switch to Testnet3.  Do at start of program.

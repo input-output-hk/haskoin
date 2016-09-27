@@ -82,10 +82,10 @@ data EvalError =
     | DisabledOp ScriptOp
 
 instance Show EvalError where
-    show (EvalError m) = m
+    show (EvalError m)         = m
     show (ProgramError m prog) = m ++ " - ProgramData: " ++ show prog
-    show (StackError op) = show op ++ ": Stack Error"
-    show (DisabledOp op) = show op ++ ": disabled"
+    show (StackError op)       = show op ++ ": Stack Error"
+    show (DisabledOp op)       = show op ++ ": disabled"
 
 type StackValue = [Word8]
 type AltStack = [StackValue]
@@ -98,11 +98,11 @@ type SigCheck = [ScriptOp] -> TxSignature -> PubKey -> Bool
 
 -- | Data type of the evaluation state.
 data ProgramData = ProgramData {
-    stack        :: Stack,
-    altStack     :: AltStack,
-    hashOps      :: HashOps,
-    sigCheck     :: SigCheck,
-    opCount      :: Int
+    stack    :: Stack,
+    altStack :: AltStack,
+    hashOps  :: HashOps,
+    sigCheck :: SigCheck,
+    opCount  :: Int
 }
 
 dumpOp :: ScriptOp -> ByteString
@@ -180,38 +180,38 @@ decodeInt bytes | length bytes > 4 = Nothing
 
 -- | Conversion of StackValue to Bool (true if non-zero).
 decodeBool :: StackValue -> Bool
-decodeBool []     = False
-decodeBool [0x00] = False
-decodeBool [0x80] = False
+decodeBool []        = False
+decodeBool [0x00]    = False
+decodeBool [0x80]    = False
 decodeBool (0x00:vs) = decodeBool vs
-decodeBool _ = True
+decodeBool _         = True
 
 encodeBool :: Bool -> StackValue
-encodeBool True = [1]
+encodeBool True  = [1]
 encodeBool False = []
 
 constValue :: ScriptOp -> Maybe StackValue
 constValue op = case op of
-    OP_0  -> Just $ encodeInt 0
-    OP_1  -> Just $ encodeInt 1
-    OP_2  -> Just $ encodeInt 2
-    OP_3  -> Just $ encodeInt 3
-    OP_4  -> Just $ encodeInt 4
-    OP_5  -> Just $ encodeInt 5
-    OP_6  -> Just $ encodeInt 6
-    OP_7  -> Just $ encodeInt 7
-    OP_8  -> Just $ encodeInt 8
-    OP_9  -> Just $ encodeInt 9
-    OP_10 -> Just $ encodeInt 10
-    OP_11 -> Just $ encodeInt 11
-    OP_12 -> Just $ encodeInt 12
-    OP_13 -> Just $ encodeInt 13
-    OP_14 -> Just $ encodeInt 14
-    OP_15 -> Just $ encodeInt 15
-    OP_16 -> Just $ encodeInt 16
-    OP_1NEGATE -> Just $ encodeInt $ -1
+    OP_0                   -> Just $ encodeInt 0
+    OP_1                   -> Just $ encodeInt 1
+    OP_2                   -> Just $ encodeInt 2
+    OP_3                   -> Just $ encodeInt 3
+    OP_4                   -> Just $ encodeInt 4
+    OP_5                   -> Just $ encodeInt 5
+    OP_6                   -> Just $ encodeInt 6
+    OP_7                   -> Just $ encodeInt 7
+    OP_8                   -> Just $ encodeInt 8
+    OP_9                   -> Just $ encodeInt 9
+    OP_10                  -> Just $ encodeInt 10
+    OP_11                  -> Just $ encodeInt 11
+    OP_12                  -> Just $ encodeInt 12
+    OP_13                  -> Just $ encodeInt 13
+    OP_14                  -> Just $ encodeInt 14
+    OP_15                  -> Just $ encodeInt 15
+    OP_16                  -> Just $ encodeInt 16
+    OP_1NEGATE             -> Just $ encodeInt $ -1
     (OP_PUSHDATA string _) -> Just $ BS.unpack string
-    _ -> Nothing
+    _                      -> Nothing
 
 
 -- | Check if OpCode is constant
@@ -277,7 +277,7 @@ getCond = get
 
 popCond :: Program Bool
 popCond = get >>= \condStack -> case condStack of
-    [] -> lift $ programError "popCond: empty condStack"
+    []     -> lift $ programError "popCond: empty condStack"
     (x:xs) -> put xs >> return x
 
 pushCond :: Bool -> Program ()
@@ -570,7 +570,7 @@ minimalPushEnforcer op = do
     if not $ MINIMALDATA `elem` flgs
         then return ()
         else case checkMinimalPush op of
-            True -> return ()
+            True  -> return ()
             False -> programError $ "Non-minimal data: " ++ (show op)
 
 checkMinimalPush :: ScriptOp -> Bool -- Putting in a maybe monad to avoid elif chain
@@ -677,12 +677,12 @@ checkPushOnly ops
       | not (all checkPushOp ops) = lift $ programError "only push ops allowed"
       | otherwise = return ()
       where checkPushOp op = case constValue op of
-                                  Just _ -> True
+                                  Just _  -> True
                                   Nothing -> False
 
 checkStack :: Stack -> Bool
 checkStack (x:_) = decodeBool x
-checkStack []  = False
+checkStack []    = False
 
 
 isPayToScriptHash :: [ ScriptOp ] -> [ Flag ]  -> Bool
@@ -738,13 +738,13 @@ execScript scriptSig scriptPubKey sigCheckFcn flags =
 
 -- | Evaluates a P2SH style script from its serialization in the stack
 evalP2SH :: Stack -> Program ProgramData
-evalP2SH [] = lift $ programError "PayToScriptHash: no script on stack"
+evalP2SH []     = lift $ programError "PayToScriptHash: no script on stack"
 evalP2SH (sv:_) = evalOps (stackToScriptOps sv) >> lift get
 
 evalScript :: Script -> Script -> SigCheck -> [ Flag ] -> Bool
 evalScript scriptSig scriptPubKey sigCheckFcn flags =
               case execScript scriptSig scriptPubKey sigCheckFcn flags of
-                  Left _ -> False
+                  Left _  -> False
                   Right p -> checkStack . runStack $ p
 
 runStack :: ProgramData -> Stack

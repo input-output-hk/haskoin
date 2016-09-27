@@ -1,17 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.Haskoin.Script.Units (tests) where
 
-import Test.HUnit (Assertion, assertBool)
-import Test.Framework (Test, testGroup)
-import Test.Framework.Providers.HUnit (testCase)
+import           Test.Framework                 (Test, testGroup)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (Assertion, assertBool)
 
-import Data.Maybe (fromJust)
-import Data.ByteString (ByteString)
-import Data.Serialize (decode)
+import           Data.ByteString                (ByteString)
+import           Data.Maybe                     (fromJust)
+import           Data.Serialize                 (decode)
 
-import Network.Haskoin.Script
-import Network.Haskoin.Crypto
-import Network.Haskoin.Util
+import           Network.Haskoin.Crypto
+import           Network.Haskoin.Script
+import           Network.Haskoin.Util
 
 tests :: [Test]
 tests =

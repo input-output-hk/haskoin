@@ -46,7 +46,7 @@ module Network.Haskoin.Node
 
 ) where
 
-import Network.Haskoin.Node.Message
-import Network.Haskoin.Node.Types
-import Network.Haskoin.Node.Bloom
+import           Network.Haskoin.Node.Bloom
+import           Network.Haskoin.Node.Message
+import           Network.Haskoin.Node.Types
 
