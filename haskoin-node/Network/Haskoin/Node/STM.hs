@@ -84,7 +84,7 @@ getNodeState sharedSqlBackend = do
         sharedTxChan          <- atomically $ newTBMChan 1024
         sharedTxGetData       <- newTVarIO M.empty
         sharedRescan          <- newEmptyTMVarIO
-        sharedMempool         <- newTVarIO False
+        sharedMempool         <- newTVarIO M.empty
         sharedBloomFilter     <- newTVarIO Nothing
         -- Find our best node in the HeaderTree
         sharedBestHeader      <- newTVarIO best
@@ -149,7 +149,7 @@ data SharedNodeState = SharedNodeState
       -- ^ Transaction channel
     , sharedRescan        :: !(TMVar (Either Timestamp BlockHeight))
       -- ^ Rescan requests from a timestamp or from a block height
-    , sharedMempool       :: !(TVar Bool)
+    , sharedMempool       :: !(TVar (M.Map TxHash Tx))
       -- ^ Did we do a Mempool sync ?
     , sharedSqlBackend    :: !(Either SqlBackend ConnectionPool)
     }

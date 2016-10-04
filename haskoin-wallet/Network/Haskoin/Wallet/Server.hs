@@ -39,7 +39,8 @@ import qualified Data.HashMap.Strict                   as H (lookup)
 import           Data.List.NonEmpty                    (NonEmpty ((:|)))
 import qualified Data.Map.Strict                       as M (Map, assocs, elems,
                                                              empty,
-                                                             fromListWith, null,
+                                                             fromListWith, insert,
+                                                             null,
                                                              unionWith)
 import           Data.Maybe                            (fromJust, fromMaybe,
                                                         isJust)
@@ -173,7 +174,7 @@ runSPVServer cfg = maybeDetach cfg $ run $ do -- start the server process
         atomicallyNodeT $ do
             synced <- areBlocksSynced hash
             when synced $ lift retry
-    processTx pool notif = awaitForever $ \tx -> lift $ do
+    processTx pool notif = awaitForever $ \tx -> lift $ do {-
         (_, newAddrs) <- runDBPool (importNetTx tx (Just notif)) pool
         unless (null newAddrs) $ do
             $(logInfo) $ pack $ unwords
@@ -182,7 +183,19 @@ runSPVServer cfg = maybeDetach cfg $ run $ do -- start the server process
                 , "Updating the bloom filter"
                 ]
             (bloom, elems, _) <- runDBPool getBloomFilter pool
-            atomicallyNodeT $ sendBloomFilter bloom elems
+            atomicallyNodeT $ sendBloomFilter bloom elems -}
+        
+        let tid = txHash tx
+        
+        $(logDebug) $ pack $ unwords $
+            [ "Inserting into mempool", cs (txHashToHex tid) ]
+        
+        -- Insert incoming transaction into the mempool (TODO: verification)
+        atomicallyNodeT $ do -- TODO: fix style
+            mempool <- readTVarS sharedMempool
+            --let newMempool = M.insertWith (flip const) (txHash tx) tx mempool 
+            let newMempool = M.insert tid tx mempool  -- TODO: what if transaction exists already?
+            writeTVarS sharedMempool newMempool
 
 initDatabase :: (MonadBaseControl IO m, MonadLoggerIO m)
              => Config -> m ConnectionPool

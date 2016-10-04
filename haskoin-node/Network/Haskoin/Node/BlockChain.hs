@@ -124,6 +124,12 @@ broadcastTxs txids = do
     -- Broadcast an INV message for new transactions
     let msg = MInv $ Inv $ map (InvVector InvTx . getTxHash) txids
     atomicallyNodeT $ sendMessageAll msg
+    
+syncMempool :: (MonadLoggerIO m, MonadBaseControl IO m)
+            => NodeT m ()
+syncMempool =
+    -- Broadcast a MEMPOOL message (TODO: filter peers?)
+    atomicallyNodeT $ sendMessageAll MMempool
 
 rescanTs :: Timestamp -> NodeT STM ()
 rescanTs ts = do
@@ -224,10 +230,9 @@ merkleSyncedActions walletHash =
             writeTVarS sharedBestHeader bestBlock
             writeTVarS sharedMerklePeer Nothing
         -- Do a mempool sync on the first merkle sync
-        unless mempool $ do
+        when (M.null mempool) $ do
             atomicallyNodeT $ do
                 sendMessageAll MMempool
-                writeTVarS sharedMempool True
             $(logInfo) "Requesting a mempool sync"
 
 -- Wait for headers to catch up to the given height
@@ -702,7 +707,7 @@ nodeStatus = do
         nodeStatusRescan <-
             tryReadTMVar sharedRescan
         nodeStatusMempool <-
-            readTVar sharedMempool
+            not . M.null <$> readTVar sharedMempool
         nodeStatusSyncLock <-
             locked sharedSyncLock
         return NodeStatus{..}
