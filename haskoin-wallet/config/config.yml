@@ -12,6 +12,8 @@ connect-uri-notif: ipc://notif.sock
 # daemon does not start and only the local wallet is available to query.
 server-mode: online
 
+server-port: 29520
+
 # False positive rate for the bloom filters.
 bloom-false-positive: 0.00001
 

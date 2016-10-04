@@ -80,6 +80,8 @@ data Config = Config
     -- ^ Bind address for ZeroMQ notifications
     , configBTCNodes      :: !(HashMap Text [BTCNode])
     -- ^ Trusted Bitcoin full nodes to connect to
+    , configSrvPort       :: !Word32
+    -- ^ Server port for BitCoin full-node
     , configMode          :: !SPVMode
     -- ^ Operation mode of the SPV node.
     , configBloomFP       :: !Double
@@ -170,6 +172,7 @@ instance FromJSON Config where
         configBindNotif             <- o .: "bind-socket-notif"
         configBTCNodes              <- o .: "bitcoin-full-nodes"
         configMode                  <- o .: "server-mode"
+        configSrvPort               <- o .: "server-port"
         configBloomFP               <- o .: "bloom-false-positive"
         configLogFile               <- o .: "log-file"
         configPidFile               <- o .: "pid-file"
