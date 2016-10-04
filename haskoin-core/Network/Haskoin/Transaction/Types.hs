@@ -1,11 +1,6 @@
 module Network.Haskoin.Transaction.Types
-( Tx
+( Tx (..)
 , createTx
-, txVersion
-, txIn
-, txOut
-, txLockTime
-, txHash
 , TxIn(..)
 , TxOut(..)
 , OutPoint(..)
@@ -32,7 +27,8 @@ import           Data.Serialize.Put          (putByteString, putWord32le,
 import           Data.String                 (IsString, fromString)
 import           Data.String.Conversions     (cs)
 import           Data.Word                   (Word32, Word64)
-import           Network.Haskoin.Crypto.Hash
+import           Network.Haskoin.Crypto.Hash (Hash256 (..), bsToHash256,
+                                              doubleHash256)
 import           Network.Haskoin.Node.Types
 import           Network.Haskoin.Util
 import           Text.Read                   (lexP, parens, pfail, readPrec)
@@ -67,8 +63,8 @@ instance Serialize TxHash where
     put = put . getTxHash
 
 nosigTxHash :: Tx -> TxHash
-nosigTxHash tx =
-    TxHash $ doubleHash256 $ encode tx{ _txIn = map clearInput $ txIn tx }
+nosigTxHash tx@Tx{..} =
+    TxHash $ doubleHash256 $ encode $ tx { txIn = map clearInput $ txIn}
   where
     clearInput ti = ti{ scriptInput = BS.empty }
 
@@ -91,46 +87,31 @@ instance ToJSON TxHash where
 -- | Data type representing a bitcoin transaction
 data Tx = Tx
     { -- | Transaction data format version
-      _txVersion  :: !Word32
+      txVersion  :: !Word32
       -- | List of transaction inputs
-    , _txIn       :: ![TxIn]
+    , txIn       :: ![TxIn]
       -- | List of transaction outputs
-    , _txOut      :: ![TxOut]
+    , txOut      :: ![TxOut]
       -- | The block number of timestamp at which this transaction is locked
-    , _txLockTime :: !Word32
+    , txLockTime :: !Word32
      -- | Hash of the transaction
-    , _txHash     :: !TxHash
+    , txHash     :: !TxHash
     } deriving (Eq)
-
-txVersion :: Tx -> Word32
-txVersion = _txVersion
-
-txIn :: Tx -> [TxIn]
-txIn = _txIn
-
-txOut :: Tx -> [TxOut]
-txOut = _txOut
-
-txLockTime :: Tx -> Word32
-txLockTime = _txLockTime
-
-txHash :: Tx -> TxHash
-txHash = _txHash
 
 createTx :: Word32 -> [TxIn] -> [TxOut] -> Word32 -> Tx
 createTx v is os l =
-    Tx { _txVersion  = v
-       , _txIn       = is
-       , _txOut      = os
-       , _txLockTime = l
-       , _txHash     = TxHash $ doubleHash256 $ encode tx
+    Tx { txVersion  = v
+       , txIn       = is
+       , txOut      = os
+       , txLockTime = l
+       , txHash     = TxHash $ doubleHash256 $ encode tx
        }
   where
-    tx = Tx { _txVersion  = v
-            , _txIn       = is
-            , _txOut      = os
-            , _txLockTime = l
-            , _txHash     = fromString $ replicate 64 '0'
+    tx = Tx { txVersion  = v
+            , txIn       = is
+            , txOut      = os
+            , txLockTime = l
+            , txHash     = fromString $ replicate 64 '0'
             }
 
 instance Show Tx where
@@ -163,11 +144,11 @@ instance Serialize Tx where
             end <- remaining
             return (v, is, os, l, end)
         bs <- getByteString $ fromIntegral $ start - end
-        return $ Tx { _txVersion  = v
-                    , _txIn       = is
-                    , _txOut      = os
-                    , _txLockTime = l
-                    , _txHash     = TxHash $ doubleHash256 bs
+        return $ Tx { txVersion  = v
+                    , txIn       = is
+                    , txOut      = os
+                    , txLockTime = l
+                    , txHash     = TxHash $ doubleHash256 bs
                     }
       where
         replicateList (VarInt c) = replicateM (fromIntegral c) get
@@ -264,4 +245,3 @@ instance Serialize OutPoint where
         (h,i) <- liftM2 (,) get getWord32le
         return $ OutPoint h i
     put (OutPoint h i) = put h >> putWord32le i
-

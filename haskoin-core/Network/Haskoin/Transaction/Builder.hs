@@ -39,6 +39,7 @@ import           Data.Maybe                        (catMaybes, fromJust,
 import           Data.Serialize                    (encode)
 import           Data.String.Conversions           (cs)
 import           Data.Word                         (Word64)
+import           Network.Haskoin.Crypto.Hash       (doubleHash256)
 import           Network.Haskoin.Crypto
 import           Network.Haskoin.Node.Types
 import           Network.Haskoin.Script
@@ -389,6 +390,15 @@ mergeTxInput txs tx (so, i) = do
 
 {- Tx verification -}
 
+-- | Verify structural validaty of a transaction
+verifyTx :: Tx -> Bool
+verifyTx Tx{..} =
+    (not $ (null txIn || null txOut)) &&
+    (txVersion >= 0 && txLockTime >= 0) &&
+    length txIn + length txOut <= 50 &&
+    (TxHash $ doubleHash256 $ encode $
+        createTx txVersion txIn txOut txLockTime) == txHash
+
 -- | Verify if a transaction is valid and all of its inputs are standard.
 verifyStdTx :: Tx -> [(ScriptOutput, OutPoint)] -> Bool
 verifyStdTx tx xs =
@@ -430,4 +440,3 @@ countMulSig tx out i (pub:pubs) sigs@(TxSignature sig sh:rest)
     | verifySig (txSigHash tx out i sh) sig pub =
          1 + countMulSig tx out i pubs rest
     | otherwise = countMulSig tx out i pubs sigs
-
