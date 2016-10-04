@@ -272,10 +272,10 @@ startIncomingPeerPid pid ph ad = do
 
     $(logDebug) $ formatPid pid ph "Starting a new incoming client TCP handler"
 
-    (peerTCPClient chan ad) `finally` cleanupPeer
+    (peerTCPClient chan) `finally` cleanupPeer
     return ()
   where
-    peerTCPClient chan ad = do
+    peerTCPClient chan = do
             -- Conduit for receiving messages from the remote host
         let recvMsg = appSource ad $$ decodeMessage pid ph
             -- Conduit for sending messages to the remote host
