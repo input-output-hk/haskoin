@@ -30,6 +30,7 @@ import           Data.Conduit                    (Conduit, Sink, awaitForever,
                                                   yield, ($$), ($=))
 import qualified Data.Conduit.Binary             as CB (take)
 import           Data.Conduit.Network            (appSink, appSource,
+                                                  appSockAddr,
                                                   clientSettings,
                                                   runGeneralTCPClient)
 import           Data.Conduit.TMChan             (sourceTBMChan)
@@ -69,6 +70,14 @@ startPeer ph@PeerHost{..} = do
     pid <- liftIO newUnique
     -- Start the peer with the given PID
     startPeerPid pid ph
+    
+startIncomingPeer ad = do
+    -- Create a new unique ID for this peer
+    pid <- liftIO newUnique
+    -- Start the peer with the given PID
+    startIncomingPeerPid pid ph ad
+  where
+    ph = peerHostFromSockAddr $ appSockAddr ad
 
 -- Start a peer that will try to reconnect when the connection is closed. The
 -- reconnections are performed using an expoential backoff time. This function
@@ -220,6 +229,106 @@ startPeerPid pid ph@PeerHost{..} = do
                 _ -> return ()
             -- Update the network height
             updateNetworkHeight
+
+peerHostFromSockAddr (SockAddrInet portNumber hostAddress) = PeerHost{..}
+  where
+    peerPort = read $ show portNumber
+    peerHost = show hostAddress
+
+startIncomingPeerPid pid ph ad = do
+    -- Check if the peer host is banned
+    banned <- atomicallyNodeT $ isPeerHostBanned ph
+    when banned $ do
+        $(logWarn) $ formatPid pid ph "Failed to start banned host"
+        liftIO $ throwIO NodeExceptionBanned
+
+    -- Check if the peer host is already connected
+    connected <- atomicallyNodeT $ isPeerHostConnected ph
+    when connected $ do
+        $(logWarn) $ formatPid pid ph "This host is already connected"
+        liftIO $ throwIO NodeExceptionConnected
+
+    tid     <- liftIO myThreadId
+    chan    <- liftIO . atomically $ newTBMChan 1024
+    mChan   <- liftIO . atomically $ newTBMChan 1024
+    pings   <- liftIO $ newTVarIO []
+    atomicallyNodeT $ do
+        newPeerSession pid PeerSession
+            { peerSessionConnected  = False
+            , peerSessionVersion    = Nothing
+            , peerSessionHeight     = 0
+            , peerSessionChan       = chan
+            , peerSessionHost       = ph
+            , peerSessionThreadId   = tid
+            , peerSessionMerkleChan = mChan
+            , peerSessionPings      = pings
+            , peerSessionScore      = Nothing
+            }
+        newHostSession ph PeerHostSession
+            { peerHostSessionScore     = 0
+            , peerHostSessionReconnect = 1
+            , peerHostSessionLog       = []
+            }
+
+    $(logDebug) $ formatPid pid ph "Starting a new incoming client TCP handler"
+
+    (peerTCPClient chan ad) `finally` cleanupPeer
+    return ()
+  where
+    peerTCPClient chan ad = do
+            -- Conduit for receiving messages from the remote host
+        let recvMsg = appSource ad $$ decodeMessage pid ph
+            -- Conduit for sending messages to the remote host
+            sendMsg = sourceTBMChan chan $= encodeMessage $$ appSink ad
+
+        withAsync (evalStateT recvMsg Nothing) $ \a1 -> link a1 >> do
+            $(logDebug) $ formatPid pid ph
+                "Receiving message thread started..."
+            withAsync sendMsg $ \a2 -> link a2 >> do
+                $(logDebug) $ formatPid pid ph
+                    "Sending message thread started..."
+                -- Perform the peer handshake before we continue
+                -- Timeout after 2 minutes
+                resE <- raceTimeout 120 (disconnectPeer pid ph)
+                                        (peerHandshake pid ph chan)
+                case resE of
+                    Left _ -> $(logError) $ formatPid pid ph
+                        "Peer timed out during the connection handshake"
+                    _ -> do
+                        -- Send the bloom filter if we have one
+                        $(logDebug) $ formatPid pid ph
+                            "Sending the bloom filter if we have one"
+                        atomicallyNodeT $ do
+                            bloomM <- readTVarS sharedBloomFilter
+                            case bloomM of
+                                Just (bloom, _) ->
+                                    sendMessage pid $
+                                        MFilterLoad $ FilterLoad bloom
+                                _ -> return ()
+                        withAsync (peerPing pid ph) $ \a3 -> link a3 >> do
+                            $(logDebug) $ formatPid pid ph "Ping thread started"
+                            _ <- liftIO $ waitAnyCancel [a1, a2, a3]
+                            return ()
+
+    cleanupPeer = do
+        $(logWarn) $ formatPid pid ph "Peer is closing. Running cleanup..."
+        atomicallyNodeT $ do
+            -- Remove the header syncing peer if necessary
+            hPidM <- readTVarS sharedHeaderPeer
+            when (hPidM == Just pid) $ writeTVarS sharedHeaderPeer Nothing
+            -- Remove the merkle syncing peer if necessary
+            mPidM <- readTVarS sharedMerklePeer
+            when (mPidM == Just pid) $ writeTVarS sharedMerklePeer Nothing
+            -- Remove the session and close the channels
+            sessM <- removePeerSession pid
+            case sessM of
+                Just PeerSession{..} -> lift $ do
+                    closeTBMChan peerSessionChan
+                    closeTBMChan peerSessionMerkleChan
+                _ -> return ()
+            -- Update the network height
+            updateNetworkHeight
+
 
 -- Return True if the PeerHost is banned
 isPeerHostBanned :: PeerHost -> NodeT STM Bool

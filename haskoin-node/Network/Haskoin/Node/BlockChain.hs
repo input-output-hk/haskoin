@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Network.Haskoin.Node.BlockChain where
 
 import           Control.Concurrent              (threadDelay)
@@ -22,6 +23,7 @@ import           Control.Monad.Trans             (MonadIO, lift, liftIO)
 import           Control.Monad.Trans.Control     (MonadBaseControl, liftBaseOp_)
 import qualified Data.ByteString.Char8           as C (unpack)
 import           Data.Conduit                    (Source, yield)
+import           Data.Conduit.Network            (appSockAddr, runGeneralTCPServer, serverSettings)
 import           Data.List                       (nub)
 import qualified Data.Map                        as M (delete, keys, lookup,
                                                        null)
@@ -38,6 +40,7 @@ import           Network.Haskoin.Node.HeaderTree
 import           Network.Haskoin.Node.Peer
 import           Network.Haskoin.Node.STM
 import           Network.Haskoin.Transaction
+import           Network.Socket                  (SockAddr (SockAddrInet))
 import           System.Random                   (randomIO)
 
 startSPVNode :: (MonadLoggerIO m, MonadBaseControl IO m)
@@ -53,12 +56,26 @@ startSPVNode hosts bloom elems = do
     withAsync (void $ mapConcurrently startReconnectPeer hosts) $ \a1 -> do
         link a1
         $(logInfo) "Starting the initial header sync"
-        headerSync
+        -- headerSync
         $(logInfo) "Initial header sync complete"
         $(logDebug) "Starting the tickle processing thread"
         withAsync processTickles $ \a2 -> link a2 >> do
             _ <- liftIO $ waitAny [a1, a2]
             return ()
+            
+startServerNode :: (MonadLoggerIO m, MonadBaseControl IO m)
+             => Int
+             -> NodeT m ()
+startServerNode port = do
+    $(logDebug) $ pack $ unwords
+        [ "Starting server node at", show $ port ]
+    runGeneralTCPServer (serverSettings port "*") $ \ad -> do
+        $(logInfo) $ pack $ unwords $ ["Incoming connection from ", 
+                case appSockAddr ad of
+                    SockAddrInet clientPort clientHost -> show clientHost ++ ":" ++ show clientPort
+                    _ -> "unknown addr family"
+            ]
+        startIncomingPeer ad
 
 -- Source of all transaction broadcasts
 txSource :: (MonadLoggerIO m, MonadBaseControl IO m)

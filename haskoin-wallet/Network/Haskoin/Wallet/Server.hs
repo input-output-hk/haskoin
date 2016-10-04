@@ -114,8 +114,9 @@ runSPVServer cfg = maybeDetach cfg $ run $ do -- start the server process
             as <- mapM async
                 -- Start the SPV node
                 [ runNodeT (spv pool) node
+                , runNodeT (spvs pool) node
                 -- Merkle block synchronization
-                , runNodeT (runMerkleSync pool notif) node
+                -- , runNodeT (runMerkleSync pool notif) node
                 -- Import solo transactions as they arrive from peers
                 , runNodeT (txSource $$ processTx pool notif) node
                 -- Respond to transaction GetData requests
@@ -133,6 +134,8 @@ runSPVServer cfg = maybeDetach cfg $ run $ do -- start the server process
         -- Get our bloom filter
         (bloom, elems, _) <- runDBPool getBloomFilter pool
         startSPVNode hosts bloom elems
+    spvs pool = do
+        startServerNode $ fromIntegral . configSrvPort $ cfg
     -- Setup logging monads
     run          = runResourceT . runLogging
     runLogging   = runStdoutLoggingT . filterLogger logFilter
