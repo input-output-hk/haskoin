@@ -451,6 +451,12 @@ processMessage pid ph msg = checkMerkleEnd >> case msg of
                 $(logDebug) $ formatPid pid ph $ unwords
                     [ "Received tx broadcast", cs $ txHashToHex $ txHash tx ]
                 liftIO . atomically $ writeTBMChan txChan (pid, ph, tx)
+    MMempool -> lift $ do
+        $(logDebug) $ formatPid pid ph "Processing MMempool message"
+        atomicallyNodeT $ do
+            mempool <- readTVarS sharedMempool
+            let invVectors = map (InvVector InvTx . getTxHash) (M.keys mempool)
+            sendMessage pid $ MInv $ Inv invVectors
     MMerkleBlock mb@(MerkleBlock mHead ntx hs fs) -> do
         $(logDebug) $ formatPid pid ph "Processing MMerkleBlock message"
         case extractMatches fs hs (fromIntegral ntx) of

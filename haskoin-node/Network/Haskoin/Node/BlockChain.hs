@@ -27,7 +27,7 @@ import           Data.Conduit.Network            (appSockAddr, runGeneralTCPServ
 import           Data.List                       (nub)
 import qualified Data.Map                        as M (delete, keys, lookup,
                                                        null)
-import           Data.Maybe                      (listToMaybe)
+import           Data.Maybe                      (isJust, listToMaybe)
 import qualified Data.Sequence                   as S (length)
 import           Data.String.Conversions         (cs)
 import           Data.Text                       (pack)
@@ -100,7 +100,9 @@ handleGetData handler = forever $ do
     txids <- atomicallyNodeT $ do
         datMap <- readTVarS sharedTxGetData
         if M.null datMap then lift retry else return $ M.keys datMap
-    forM (nub txids) $ \tid -> lift (handler tid) >>= \txM -> do
+    mempool <- atomicallyNodeT $ readTVarS sharedMempool
+    
+    forM (nub txids) $ \tid -> lookupTid mempool tid >>= \txM -> do
         $(logDebug) $ pack $ unwords
             [ "Processing GetData txid request", cs $ txHashToHex tid ]
         pidsM <- atomicallyNodeT $ do
@@ -114,6 +116,12 @@ handleGetData handler = forever $ do
                     [ "Sending tx", cs $ txHashToHex tid, "to peer" ]
                 atomicallyNodeT $ trySendMessage pid $ MTx tx
             _ -> return ()
+  where
+    -- lookup in mempool, call handler if nothing found
+    lookupTid mempool tid = do  -- TODO: fix style
+        let mempoolTxM = M.lookup tid mempool
+        if isJust mempoolTxM 
+            then return mempoolTxM  else lift (handler tid)
 
 broadcastTxs :: (MonadLoggerIO m, MonadBaseControl IO m)
              => [TxHash]
