@@ -26,7 +26,7 @@ import           Control.Monad.Reader            (ReaderT, ask, asks,
 import           Control.Monad.Trans             (MonadIO, lift, liftIO)
 import           Control.Monad.Trans.Control     (MonadBaseControl)
 import           Data.Aeson.TH                   (deriveJSON)
-import qualified Data.Map.Strict                 as M (Map, delete, empty,
+import qualified Data.Map.Strict                 as M (Map, delete,
                                                        insert, lookup)
 import           Data.Maybe                      (isJust)
 import           Data.Time.Clock                 (NominalDiffTime)
@@ -73,8 +73,8 @@ getNodeState sharedSqlBackend = do
     $(logDebug) "Initializing the HeaderTree and NodeState"
     best <- runSql (initHeaderTree >> getBestBlock) sharedSqlBackend
     liftIO $ do
-        sharedPeerMap         <- newTVarIO M.empty
-        sharedHostMap         <- newTVarIO M.empty
+        sharedPeerMap         <- newTVarIO mempty
+        sharedHostMap         <- newTVarIO mempty
         sharedNetworkHeight   <- newTVarIO 0
         sharedHeaders         <- newEmptyTMVarIO
         sharedHeaderPeer      <- newTVarIO Nothing
@@ -82,9 +82,9 @@ getNodeState sharedSqlBackend = do
         sharedSyncLock        <- atomically Lock.new
         sharedTickleChan      <- atomically $ newTBMChan 1024
         sharedTxChan          <- atomically $ newTBMChan 1024
-        sharedTxGetData       <- newTVarIO M.empty
+        sharedTxGetData       <- newTVarIO mempty
         sharedRescan          <- newEmptyTMVarIO
-        sharedMempool         <- newTVarIO M.empty
+        sharedMempool         <- newTVarIO mempty
         sharedBloomFilter     <- newTVarIO Nothing
         -- Find our best node in the HeaderTree
         sharedBestHeader      <- newTVarIO best
@@ -120,6 +120,8 @@ instance NFData PeerHostSession where
 
 {- Shared Peer STM Type -}
 
+type MemPool = (M.Map TxHash Tx)
+
 data SharedNodeState = SharedNodeState
     { sharedPeerMap       :: !(TVar (M.Map PeerId (TVar PeerSession)))
       -- ^ Map of all active peers and their sessions
@@ -149,8 +151,8 @@ data SharedNodeState = SharedNodeState
       -- ^ Transaction channel
     , sharedRescan        :: !(TMVar (Either Timestamp BlockHeight))
       -- ^ Rescan requests from a timestamp or from a block height
-    , sharedMempool       :: !(TVar (M.Map TxHash Tx))
-      -- ^ Did we do a Mempool sync ?
+    , sharedMempool       :: !(TVar MemPool)
+      -- ^ Transactions to be added to the next block
     , sharedSqlBackend    :: !(Either SqlBackend ConnectionPool)
     }
 
@@ -409,4 +411,3 @@ catchAny = catch
 catchAny_ :: MonadBaseControl IO m
           => m () -> m ()
 catchAny_ = flip catchAny $ \_ -> return ()
-

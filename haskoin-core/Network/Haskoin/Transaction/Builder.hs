@@ -8,6 +8,7 @@ module Network.Haskoin.Transaction.Builder
 , mergeTxs
 , verifyStdTx
 , verifyStdInput
+, verifyTx
 , guessTxSize
 , chooseCoins
 , chooseCoinsSink
@@ -395,7 +396,7 @@ verifyTx :: Tx -> Bool
 verifyTx Tx{..} =
     (not $ (null txIn || null txOut)) &&
     (txVersion >= 0 && txLockTime >= 0) &&
-    length txIn + length txOut <= 50 &&
+    length txIn + length txOut <= 50 &&  -- magic number, we can change it later
     (TxHash $ doubleHash256 $ encode $
         createTx txVersion txIn txOut txLockTime) == txHash
 

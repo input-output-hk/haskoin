@@ -31,6 +31,7 @@ module Network.Haskoin.Transaction
 , mergeTxs
 , verifyStdTx
 , verifyStdInput
+, verifyTx
 
   -- *Coin selection
 , Coin(..)
@@ -47,4 +48,3 @@ module Network.Haskoin.Transaction
 
 import           Network.Haskoin.Transaction.Builder
 import           Network.Haskoin.Transaction.Types
-

@@ -10,6 +10,7 @@ import           Control.Concurrent.Async.Lifted       (async, link,
 import           Control.Concurrent.STM                (atomically, retry)
 import           Control.Concurrent.STM.TBMChan        (TBMChan, newTBMChan,
                                                         readTBMChan)
+import           Control.Concurrent.STM.TVar           (readTVarIO, writeTVar)
 import           Control.DeepSeq                       (NFData (..))
 import           Control.Exception.Lifted              (ErrorCall (..),
                                                         SomeException (..),
@@ -24,6 +25,7 @@ import           Control.Monad.Logger                  (MonadLoggerIO,
                                                         logError, logInfo,
                                                         logWarn,
                                                         runStdoutLoggingT)
+import           Control.Monad.Reader                  (ask)
 import           Control.Monad.Trans                   (lift, liftIO)
 import           Control.Monad.Trans.Control           (MonadBaseControl,
                                                         liftBaseOpDiscard)
@@ -40,7 +42,7 @@ import           Data.List.NonEmpty                    (NonEmpty ((:|)))
 import qualified Data.Map.Strict                       as M (Map, assocs, elems,
                                                              empty,
                                                              fromListWith, insert,
-                                                             null,
+                                                             notMember, null,
                                                              unionWith)
 import           Data.Maybe                            (fromJust, fromMaybe,
                                                         isJust)
@@ -53,19 +55,32 @@ import           Database.Esqueleto                    (from, val, where_,
                                                         (^.))
 import           Database.Persist.Sql                  (ConnectionPool,
                                                         runMigration)
-import           Network.Haskoin.Block
-import           Network.Haskoin.Constants
-import           Network.Haskoin.Node.BlockChain
+import           Network.Haskoin.Block                 (MerkleBlock (..),
+                                                        blockHashToHex,
+                                                        headerHash)
+import           Network.Haskoin.Constants             (networkName)
+import           Network.Haskoin.Node.BlockChain       (areBlocksSynced,
+                                                        broadcastTxs,
+                                                        handleGetData,
+                                                        merkleDownload,
+                                                        rescanTs,
+                                                        startServerNode,
+                                                        startSPVNode,
+                                                        txSource)
 import           Network.Haskoin.Node.HeaderTree
 import           Network.Haskoin.Node.Peer
 import           Network.Haskoin.Node.STM
-import           Network.Haskoin.Transaction
+import           Network.Haskoin.Transaction           (Tx (..), TxHash,
+                                                        txHashToHex, verifyTx)
 import           Network.Haskoin.Wallet.Accounts       (firstAddrTime,
                                                         getBloomFilter,
                                                         initWallet)
-import           Network.Haskoin.Wallet.Database
-import           Network.Haskoin.Wallet.Model
-import           Network.Haskoin.Wallet.Server.Handler
+import           Network.Haskoin.Wallet.Database       (getDatabasePool)
+import           Network.Haskoin.Wallet.Model          (AccountId,
+                                                        EntityField (..),
+                                                        migrateWallet,
+                                                        walletAddrAccount)
+import qualified Network.Haskoin.Wallet.Server.Handler  as SH
 import           Network.Haskoin.Wallet.Settings
 import           Network.Haskoin.Wallet.Transaction
 import           Network.Haskoin.Wallet.Types
@@ -104,14 +119,14 @@ runSPVServer cfg = maybeDetach cfg $ run $ do -- start the server process
         -- In this mode, we do not launch an SPV node. We only accept
         -- client requests through the ZMQ API.
         SPVOffline ->
-            runWalletApp $ HandlerSession cfg pool Nothing notif
+            runWalletApp $ SH.HandlerSession cfg pool Nothing notif
         -- In this mode, we launch the client ZMQ API and we sync the
         -- wallet database with an SPV node.
         SPVOnline -> do
             -- Initialize the node state
             node <- getNodeState (Right pool)
             -- Spin up the node threads
-            let session = HandlerSession cfg pool (Just node) notif
+            let session = SH.HandlerSession cfg pool (Just node) notif
             as <- mapM async
                 -- Start the SPV node
                 [ runNodeT (spv pool) node
@@ -121,7 +136,7 @@ runSPVServer cfg = maybeDetach cfg $ run $ do -- start the server process
                 -- Import solo transactions as they arrive from peers
                 , runNodeT (txSource $$ processTx pool notif) node
                 -- Respond to transaction GetData requests
-                , runNodeT (handleGetData $ (`runDBPool` pool) . getTx) node
+                , runNodeT (handleGetData $ (`SH.runDBPool` pool) . getTx) node
                 -- Re-broadcast pending transactions
                 , runNodeT (broadcastPendingTxs pool) node
                 -- Run the ZMQ API server
@@ -133,10 +148,9 @@ runSPVServer cfg = maybeDetach cfg $ run $ do -- start the server process
   where
     spv pool = do
         -- Get our bloom filter
-        (bloom, elems, _) <- runDBPool getBloomFilter pool
+        (bloom, elems, _) <- SH.runDBPool getBloomFilter pool
         startSPVNode hosts bloom elems
-    spvs pool = do
-        startServerNode $ fromIntegral . configSrvPort $ cfg
+    spvs pool = startServerNode $ fromIntegral . configSrvPort $ cfg
     -- Setup logging monads
     run          = runResourceT . runLogging
     runLogging   = runStdoutLoggingT . filterLogger logFilter
@@ -154,7 +168,7 @@ runSPVServer cfg = maybeDetach cfg $ run $ do -- start the server process
         _ <- atomicallyNodeT waitBloomFilter
 
         -- Provide a fast catchup time if we are at height 0
-        fcM <- fmap (fmap adjustFCTime) $ (`runDBPool` pool) $ do
+        fcM <- fmap (fmap SH.adjustFCTime) $ (`SH.runDBPool` pool) $ do
             (_, h) <- walletBestBlock
             if h == 0 then firstAddrTime else return Nothing
         maybe (return ()) (atomicallyNodeT . rescanTs) fcM
@@ -163,13 +177,13 @@ runSPVServer cfg = maybeDetach cfg $ run $ do -- start the server process
         merkleSync pool 500 notif
     -- Run a thread that will re-broadcast pending transactions
     broadcastPendingTxs pool = forever $ do
-        (hash, _) <- runSqlNodeT $ walletBestBlock
+        (hash, _) <- runSqlNodeT walletBestBlock
         -- Wait until we are synced
         atomicallyNodeT $ do
             synced <- areBlocksSynced hash
             unless synced $ lift retry
         -- Send an INV for those transactions to all peers
-        broadcastTxs =<< runDBPool (getPendingTxs 0) pool
+        broadcastTxs =<< SH.runDBPool (getPendingTxs 0) pool
         -- Wait until we are not synced
         atomicallyNodeT $ do
             synced <- areBlocksSynced hash
@@ -184,16 +198,16 @@ runSPVServer cfg = maybeDetach cfg $ run $ do -- start the server process
                 ]
             (bloom, elems, _) <- runDBPool getBloomFilter pool
             atomicallyNodeT $ sendBloomFilter bloom elems -}
-        
+
         let tid = txHash tx
-        
-        $(logDebug) $ pack $ unwords $
+
+        $(logDebug) $ pack $ unwords
             [ "Inserting into mempool", cs (txHashToHex tid) ]
-        
+
         -- Insert incoming transaction into the mempool (TODO: verification)
         atomicallyNodeT $ do -- TODO: fix style
             mempool <- readTVarS sharedMempool
-            --let newMempool = M.insertWith (flip const) (txHash tx) tx mempool 
+            --let newMempool = M.insertWith (flip const) (txHash tx) tx mempool
             let newMempool = M.insert tid tx mempool  -- TODO: what if transaction exists already?
             writeTVarS sharedMempool newMempool
 
@@ -206,12 +220,28 @@ initDatabase cfg = do
             (pack networkName `H.lookup` configDatabase cfg)
     pool <- getDatabasePool dbCfg
     -- Initialize wallet database
-    flip runDBPool pool $ do
+    flip SH.runDBPool pool $ do
         _ <- runMigration migrateWallet
         _ <- runMigration migrateHeaderTree
         initWallet $ configBloomFP cfg
     -- Return the semaphrone and the connection pool
     return pool
+
+acceptTx
+    :: (MonadLoggerIO m, MonadBaseControl IO m)
+    => TxHash
+    -> Tx
+    -> NodeT m SharedNodeState
+acceptTx tid tx = do
+    SharedNodeState{..} <- ask
+    mempool <- liftIO $ readTVarIO sharedMempool
+    let newMempool = if acceptableTx mempool then M.insert tid tx mempool
+                                             else mempool
+    liftIO $ atomically $ writeTVar sharedMempool newMempool
+    return SharedNodeState{..}
+  where
+    acceptableTx  mp = M.notMember tid mp && verifyTx tx
+
 
 merkleSync
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m, MonadResource m)
@@ -221,7 +251,7 @@ merkleSync
     -> NodeT m ()
 merkleSync pool bSize notif = do
     -- Get our best block
-    (hash, _) <- runDBPool walletBestBlock pool
+    (hash, _) <- SH.runDBPool walletBestBlock pool
     $(logDebug) "Starting merkle batch download"
     -- Wait for a new block or a rescan
     (action, source) <- merkleDownload hash bSize
@@ -238,7 +268,7 @@ merkleSync pool bSize notif = do
             , "new addresses while importing the merkle block."
             , "Sending our bloom filter."
             ]
-        (bloom, elems, _) <- runDBPool getBloomFilter pool
+        (bloom, elems, _) <- SH.runDBPool getBloomFilter pool
         atomicallyNodeT $ sendBloomFilter bloom elems
 
     -- Check if we should rescan the current merkle batch
@@ -265,7 +295,7 @@ merkleSync pool bSize notif = do
     unless (rescan || missing) $ do
         $(logDebug) "Importing merkles into the wallet..."
         -- Confirm the transactions
-        runDBPool (importMerkles action mTxsAcc (Just notif)) pool
+        SH.runDBPool (importMerkles action mTxsAcc (Just notif)) pool
         $(logDebug) "Done importing merkles into the wallet"
         logBlockChainAction action
 
@@ -275,7 +305,7 @@ merkleSync pool bSize notif = do
         Just (Right tx) -> do
             $(logDebug) $ pack $ unwords
                 [ "Importing merkle tx", cs $ txHashToHex $ txHash tx ]
-            (_, newAddrs) <- lift $ runDBPool (importNetTx tx Nothing) pool
+            (_, newAddrs) <- lift $ SH.runDBPool (importNetTx tx Nothing) pool
             $(logDebug) $ pack $ unwords
                 [ "Generated", show $ length newAddrs
                 , "new addresses while importing tx"
@@ -298,7 +328,7 @@ merkleSync pool bSize notif = do
     shouldRescan aMap = do
         -- Try to find an account whos gap is smaller than the number of new
         -- addresses generated in that account.
-        res <- (`runDBPool` pool) $ splitSelect (M.assocs aMap) $ \ks ->
+        res <- (`SH.runDBPool` pool) $ splitSelect (M.assocs aMap) $ \ks ->
             from $ \a -> do
                 let andCond (ai, cnt) =
                         a ^. AccountId ==. val ai &&.
@@ -353,15 +383,15 @@ runWalletApp :: ( MonadLoggerIO m
                 , MonadThrow m
                 , MonadResource m
                 )
-             => HandlerSession -> m ()
+             => SH.HandlerSession -> m ()
 runWalletApp session = do
     na <- async $ liftBaseOpDiscard withContext $ \ctx ->
         liftBaseOpDiscard (withSocket ctx Pub) $ \sock -> do
         liftIO $ setLinger (restrict (0 :: Int)) sock
         setupCrypto ctx sock
-        liftIO $ bind sock $ configBindNotif $ handlerConfig session
+        liftIO $ bind sock $ configBindNotif $ SH.handlerConfig session
         forever $ do
-            xM <- liftIO $ atomically $ readTBMChan $ handlerNotifChan session
+            xM <- liftIO $ atomically $ readTBMChan $ SH.handlerNotifChan session
             forM_ xM $ \x ->
                 let (typ, pay) = case x of
                         NotifBlock _ ->
@@ -374,12 +404,12 @@ runWalletApp session = do
         liftBaseOpDiscard (withSocket ctx Rep) $ \sock -> do
         liftIO $ setLinger (restrict (0 :: Int)) sock
         setupCrypto ctx sock
-        liftIO $ bind sock $ configBind $ handlerConfig session
+        liftIO $ bind sock $ configBind $ SH.handlerConfig session
         forever $ do
             bs  <- liftIO $ receive sock
             res <- case decode $ BL.fromStrict bs of
                 Just r  -> catchErrors $
-                    runHandler (dispatchRequest r) session
+                    SH.runHandler (dispatchRequest r) session
                 Nothing -> return $ ResponseError "Could not decode request"
             liftIO $ send sock [] $ BL.toStrict $ encode res
   where
@@ -387,13 +417,13 @@ runWalletApp session = do
                 => Context -> Socket a -> m ()
     setupCrypto ctx sock = do
         when (isJust serverKeyM) $ liftIO $ do
-            let k = fromJust $ configServerKey $ handlerConfig session
+            let k = fromJust $ configServerKey $ SH.handlerConfig session
             setCurveServer True sock
             setCurveSecretKey TextFormat k sock
         when (isJust clientKeyPubM) $ do
             k <- z85Decode (fromJust clientKeyPubM)
             void $ async $ runZapAuth ctx k
-    cfg = handlerConfig session
+    cfg = SH.handlerConfig session
     serverKeyM = configServerKey cfg
     clientKeyPubM = configClientKeyPub cfg
     catchErrors m = catches m
@@ -449,29 +479,29 @@ dispatchRequest :: ( MonadLoggerIO m
                    , MonadThrow m
                    , MonadResource m
                    )
-                => WalletRequest -> Handler m (WalletResponse Value)
+                => WalletRequest -> SH.Handler m (WalletResponse Value)
 dispatchRequest req = fmap ResponseValid $ case req of
-    GetAccountsR p                   -> getAccountsR p
-    PostAccountsR na                 -> postAccountsR na
-    PostAccountRenameR n n'          -> postAccountRenameR n n'
-    GetAccountR n                    -> getAccountR n
-    PostAccountKeysR n ks            -> postAccountKeysR n ks
-    PostAccountGapR n g              -> postAccountGapR n g
-    GetAddressesR n t m o p          -> getAddressesR n t m o p
-    GetAddressesUnusedR n t p        -> getAddressesUnusedR n t p
-    GetAddressR n i t m o            -> getAddressR n i t m o
-    PutAddressR n i t l              -> putAddressR n i t l
-    PostAddressesR n i t             -> postAddressesR n i t
-    GetTxsR n p                      -> getTxsR n p
-    GetAddrTxsR n i t p              -> getAddrTxsR n i t p
-    PostTxsR n k a                   -> postTxsR n k a
-    GetTxR n h                       -> getTxR n h
-    GetOfflineTxR n h                -> getOfflineTxR n h
-    PostOfflineTxR n k t c           -> postOfflineTxR n k t c
-    GetBalanceR n mc o               -> getBalanceR n mc o
-    PostNodeR na                     -> postNodeR na
-    DeleteTxIdR t                    -> deleteTxIdR t
-    GetSyncR a n b                   -> getSyncR a (Right n) b
-    GetSyncHeightR a n b             -> getSyncR a (Left n) b
-    GetPendingR a p                  -> getPendingR a p
-    GetDeadR a p                     -> getDeadR a p
+    GetAccountsR p                   -> SH.getAccountsR p
+    PostAccountsR na                 -> SH.postAccountsR na
+    PostAccountRenameR n n'          -> SH.postAccountRenameR n n'
+    GetAccountR n                    -> SH.getAccountR n
+    PostAccountKeysR n ks            -> SH.postAccountKeysR n ks
+    PostAccountGapR n g              -> SH.postAccountGapR n g
+    GetAddressesR n t m o p          -> SH.getAddressesR n t m o p
+    GetAddressesUnusedR n t p        -> SH.getAddressesUnusedR n t p
+    GetAddressR n i t m o            -> SH.getAddressR n i t m o
+    PutAddressR n i t l              -> SH.putAddressR n i t l
+    PostAddressesR n i t             -> SH.postAddressesR n i t
+    GetTxsR n p                      -> SH.getTxsR n p
+    GetAddrTxsR n i t p              -> SH.getAddrTxsR n i t p
+    PostTxsR n k a                   -> SH.postTxsR n k a
+    GetTxR n h                       -> SH.getTxR n h
+    GetOfflineTxR n h                -> SH.getOfflineTxR n h
+    PostOfflineTxR n k t c           -> SH.postOfflineTxR n k t c
+    GetBalanceR n mc o               -> SH.getBalanceR n mc o
+    PostNodeR na                     -> SH.postNodeR na
+    DeleteTxIdR t                    -> SH.deleteTxIdR t
+    GetSyncR a n b                   -> SH.getSyncR a (Right n) b
+    GetSyncHeightR a n b             -> SH.getSyncR a (Left n) b
+    GetPendingR a p                  -> SH.getPendingR a p
+    GetDeadR a p                     -> SH.getDeadR a p
