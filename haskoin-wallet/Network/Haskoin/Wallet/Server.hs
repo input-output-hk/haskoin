@@ -242,7 +242,6 @@ acceptTx tid tx = do
   where
     acceptableTx  mp = M.notMember tid mp && verifyTx tx
 
-
 merkleSync
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m, MonadResource m)
     => ConnectionPool

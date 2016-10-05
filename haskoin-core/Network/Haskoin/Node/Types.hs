@@ -576,4 +576,3 @@ packCommand s = BS.take 12 $
 
 unpackCommand :: ByteString -> ByteString
 unpackCommand = BS.takeWhile (/= 0)
-

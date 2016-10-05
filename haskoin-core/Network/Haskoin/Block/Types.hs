@@ -30,7 +30,9 @@ import           Data.Aeson                        (FromJSON, ToJSON,
 import           Data.Bits                         (shiftL, shiftR, (.&.),
                                                     (.|.))
 import           Data.ByteString                   (ByteString)
-import qualified Data.ByteString                   as BS (length, reverse)
+import qualified Data.ByteString                   as BS (length, replicate,
+                                                          reverse)
+import qualified Data.Map                          as M (Map, elems)
 import           Data.Maybe                        (fromMaybe)
 import           Data.Serialize                    (Serialize, encode, get, put)
 import           Data.Serialize.Get                (getByteString, getWord32le,
@@ -124,66 +126,69 @@ data BlockHeader =
     BlockHeader {
                   -- | Block version information, based on the version of the
                   -- software creating this block.
-                  _blockVersion   :: !Word32
+                  blockVersion   :: !Word32
                   -- | Hash of the previous block (parent) referenced by this
                   -- block.
-                , _prevBlock      :: !BlockHash
+                , prevBlock      :: !BlockHash
                   -- | Root of the merkle tree of all transactions pertaining
                   -- to this block.
-                , _merkleRoot     :: !Hash256
+                , merkleRoot     :: !Hash256
                   -- | Unix timestamp recording when this block was created
-                , _blockTimestamp :: !Word32
+                , blockTimestamp :: !Word32
                   -- | The difficulty target being used for this block
-                , _blockBits      :: !Word32
+                , blockBits      :: !Word32
                   -- | A random nonce used to generate this block. Additional
                   -- randomness is included in the coinbase transaction of
                   -- this block.
-                , _bhNonce        :: !Word32
+                , bhNonce        :: !Word32
                   -- | Hash of the header
-                , _headerHash     :: !BlockHash
+                , headerHash     :: !BlockHash
                 } deriving (Eq, Show, Read)
 
 createBlockHeader :: Word32 -> BlockHash -> Hash256
                   -> Word32 -> Word32 -> Word32 -> BlockHeader
 createBlockHeader v p m t b n =
-    BlockHeader { _blockVersion   = v
-                , _prevBlock      = p
-                , _merkleRoot     = m
-                , _blockTimestamp = t
-                , _blockBits      = b
-                , _bhNonce        = n
-                , _headerHash     = BlockHash $ doubleHash256 $ encode bh
+    BlockHeader { blockVersion   = v
+                , prevBlock      = p
+                , merkleRoot     = m
+                , blockTimestamp = t
+                , blockBits      = b
+                , bhNonce        = n
+                , headerHash     = BlockHash $ doubleHash256 $ encode bh
                 }
   where
-    bh = BlockHeader { _blockVersion   = v
-                     , _prevBlock      = p
-                     , _merkleRoot     = m
-                     , _blockTimestamp = t
-                     , _blockBits      = b
-                     , _bhNonce        = n
-                     , _headerHash     = fromString $ replicate 64 '0'
+    bh = BlockHeader { blockVersion   = v
+                     , prevBlock      = p
+                     , merkleRoot     = m
+                     , blockTimestamp = t
+                     , blockBits      = b
+                     , bhNonce        = n
+                     , headerHash     = fromString $ replicate 64 '0'
                      }
 
-blockVersion :: BlockHeader -> Word32
-blockVersion = _blockVersion
-
-prevBlock :: BlockHeader -> BlockHash
-prevBlock = _prevBlock
-
-merkleRoot :: BlockHeader -> Hash256
-merkleRoot = _merkleRoot
-
-blockTimestamp :: BlockHeader -> Word32
-blockTimestamp = _blockTimestamp
-
-blockBits :: BlockHeader -> Word32
-blockBits = _blockBits
-
-bhNonce :: BlockHeader -> Word32
-bhNonce = _bhNonce
-
-headerHash :: BlockHeader -> BlockHash
-headerHash = _headerHash
+createBlock
+    :: M.Map TxHash Tx
+    -> Maybe Block
+    -> Block
+createBlock mempool parent =
+    let txs = M.elems mempool
+    in case parent of
+           Nothing -> let blockH = (BlockHash $ hash256 $ fromString $ replicate 64 '0')
+                          blockHeader = createBlockHeader 0
+                                                          blockH
+                                                          (hash256 " ")
+                                                          0
+                                                          0
+                                                          0
+                      in Block blockHeader txs
+           Just (Block BlockHeader{..} _) ->
+               let blockHeader = createBlockHeader blockVersion
+                                                   headerHash
+                                                   (hash256 " ")
+                                                   0
+                                                   0
+                                                   0
+               in Block blockHeader txs
 
 instance NFData BlockHeader where
     rnf (BlockHeader v p m t b n h) =
@@ -203,14 +208,14 @@ instance Serialize BlockHeader where
             end <- remaining
             return (v, p, m, t, b, n, end)
         bs <- getByteString $ fromIntegral $ start - end
-        return $ BlockHeader
-            { _blockVersion   = v
-            , _prevBlock      = p
-            , _merkleRoot     = m
-            , _blockTimestamp = t
-            , _blockBits      = b
-            , _bhNonce        = n
-            , _headerHash     = BlockHash $ doubleHash256 bs
+        return BlockHeader
+            { blockVersion   = v
+            , prevBlock      = p
+            , merkleRoot     = m
+            , blockTimestamp = t
+            , blockBits      = b
+            , bhNonce        = n
+            , headerHash     = BlockHash $ doubleHash256 bs
             }
 
     put (BlockHeader v p m bt bb n _) = do
@@ -357,4 +362,3 @@ encodeCompact i
     (s2,c2) | c1 .&. 0x00800000 /= 0  = (s1 + 1, c1 `shiftR` 8)
             | otherwise               = (s1, c1)
     c3 = fromIntegral $ c2 .|. (toInteger s2 `shiftL` 24)
-

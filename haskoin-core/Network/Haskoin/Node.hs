@@ -49,4 +49,3 @@ module Network.Haskoin.Node
 import           Network.Haskoin.Node.Bloom
 import           Network.Haskoin.Node.Message
 import           Network.Haskoin.Node.Types
-

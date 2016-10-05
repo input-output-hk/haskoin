@@ -617,8 +617,7 @@ evalNewChain :: MonadIO m
              -> SqlPersistT m BlockChainAction
 evalNewChain _ [] = error "You find yourself in the dungeon of missing blocks"
 evalNewChain best newNodes
-    | buildsOnBest = do
-        return $ BestChain newNodes
+    | buildsOnBest = return $ BestChain newNodes
     | nodeBlockWork (last newNodes) > nodeBlockWork best = do
         (split, old, new) <- splitChains (best, 0) (head newNodes, 0)
         return $ ChainReorg split old (new ++ tail newNodes)

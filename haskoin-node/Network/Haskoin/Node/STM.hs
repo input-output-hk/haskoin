@@ -120,8 +120,6 @@ instance NFData PeerHostSession where
 
 {- Shared Peer STM Type -}
 
-type MemPool = (M.Map TxHash Tx)
-
 data SharedNodeState = SharedNodeState
     { sharedPeerMap       :: !(TVar (M.Map PeerId (TVar PeerSession)))
       -- ^ Map of all active peers and their sessions
@@ -151,7 +149,7 @@ data SharedNodeState = SharedNodeState
       -- ^ Transaction channel
     , sharedRescan        :: !(TMVar (Either Timestamp BlockHeight))
       -- ^ Rescan requests from a timestamp or from a block height
-    , sharedMempool       :: !(TVar MemPool)
+    , sharedMempool       :: !(TVar (M.Map TxHash Tx))
       -- ^ Transactions to be added to the next block
     , sharedSqlBackend    :: !(Either SqlBackend ConnectionPool)
     }
