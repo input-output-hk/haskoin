@@ -855,7 +855,7 @@ printNodeStatus verbose NodeStatus{..} =
     [ "Pending Rescan    : " ++ show r
     | r <- maybeToList nodeStatusRescan, verbose
     ] ++
-    [ "Synced Mempool    : " ++ show nodeStatusMempool | verbose ] ++
+    [ "Mempool size      : " ++ show nodeStatusMempool | verbose ] ++
     [ "HeaderSync Lock   : " ++ show nodeStatusSyncLock | verbose ] ++
     [ "Peers: " ] ++
     intercalate ["-"] (map (printPeerStatus verbose) nodeStatusPeers)

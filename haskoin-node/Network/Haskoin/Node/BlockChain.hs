@@ -26,7 +26,7 @@ import           Data.Conduit                    (Source, yield)
 import           Data.Conduit.Network            (appSockAddr, runGeneralTCPServer, serverSettings)
 import           Data.List                       (nub)
 import qualified Data.Map                        as M (delete, keys, lookup,
-                                                       null)
+                                                       null, size)
 import           Data.Maybe                      (isJust, listToMaybe)
 import qualified Data.Sequence                   as S (length)
 import           Data.String.Conversions         (cs)
@@ -715,7 +715,7 @@ nodeStatus = do
         nodeStatusRescan <-
             tryReadTMVar sharedRescan
         nodeStatusMempool <-
-            not . M.null <$> readTVar sharedMempool
+            M.size <$> readTVar sharedMempool
         nodeStatusSyncLock <-
             locked sharedSyncLock
         return NodeStatus{..}

@@ -248,7 +248,7 @@ data NodeStatus = NodeStatus
     , nodeStatusHaveTxs          :: !Bool
     , nodeStatusGetData          :: ![TxHash]
     , nodeStatusRescan           :: !(Maybe (Either Timestamp BlockHeight))
-    , nodeStatusMempool          :: !Bool
+    , nodeStatusMempool          :: !Int
     , nodeStatusSyncLock         :: !Bool
     }
 
