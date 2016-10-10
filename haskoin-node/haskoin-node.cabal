@@ -31,7 +31,7 @@ cabal-version:         >= 1.9.2
 
 source-repository head
     type:     git
-    location: git://github.com/haskoin/haskoin.git
+    location: git://github.com/input-output-hk/haskoin.git
 
 library
     exposed-modules: Network.Haskoin.Node.HeaderTree

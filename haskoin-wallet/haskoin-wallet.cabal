@@ -22,7 +22,7 @@ extra-source-files:    config/help, config/config.yml, config/models
 
 source-repository head
     type:     git
-    location: git://github.com/haskoin/haskoin.git
+    location: git://github.com/input-output-hk/haskoin.git
 
 Flag library-only
     Description:   Do not build the executables
@@ -118,7 +118,7 @@ test-suite test-haskoin-wallet
 
     other-modules: Network.Haskoin.Wallet.Arbitrary
                  , Network.Haskoin.Wallet.Tests
-                 , Network.Haskoin.Wallet.Units 
+                 , Network.Haskoin.Wallet.Units
 
     extensions: RecordWildCards
                 OverloadedStrings
@@ -149,4 +149,3 @@ test-suite test-haskoin-wallet
 
     hs-source-dirs: tests
     ghc-options: -Wall
-

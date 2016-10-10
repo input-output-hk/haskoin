@@ -35,7 +35,7 @@ extra-source-files:    tests/data/*.json
 
 source-repository head
     type:     git
-    location: git://github.com/haskoin/haskoin.git
+    location: git://github.com/input-output-hk/haskoin.git
 
 library
     exposed-modules: Network.Haskoin.Util
