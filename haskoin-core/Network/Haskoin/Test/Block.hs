@@ -2,17 +2,17 @@
   Arbitrary types for Network.Haskoin.Block
 -}
 module Network.Haskoin.Test.Block
-( ArbitraryBlock(..)
-, ArbitraryBlockHeader(..)
-, ArbitraryBlockHash(..)
-, ArbitraryGetBlocks(..)
-, ArbitraryGetHeaders(..)
-, ArbitraryHeaders(..)
-, ArbitraryMerkleBlock(..)
-) where
+  ( ArbitraryBlock(..)
+  , ArbitraryBlockHeader(..)
+  , ArbitraryBlockHash(..)
+  , ArbitraryGetBlocks(..)
+  , ArbitraryGetHeaders(..)
+  , ArbitraryHeaders(..)
+  , ArbitraryMerkleBlock(..)
+  ) where
 
-import           Test.QuickCheck                  (Arbitrary, arbitrary, choose,
-                                                   listOf1, vectorOf)
+import           Test.QuickCheck                  (Arbitrary, arbitrary, choose, listOf1,
+                                                   vectorOf)
 
 import           Network.Haskoin.Test.Crypto
 import           Network.Haskoin.Test.Node
@@ -22,29 +22,34 @@ import           Network.Haskoin.Block.Merkle
 import           Network.Haskoin.Block.Types
 
 -- | Arbitrary Block
-newtype ArbitraryBlock = ArbitraryBlock Block
+newtype ArbitraryBlock =
+    ArbitraryBlock Block
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryBlock where
     arbitrary = do
         ArbitraryBlockHeader h <- arbitrary
-        c <- choose (0,10)
+        c <- choose (0, 10)
         txs <- map (\(ArbitraryTx x) -> x) <$> vectorOf c arbitrary
         return $ ArbitraryBlock $ Block h txs
 
 -- | Arbitrary BlockHeader
-newtype ArbitraryBlockHeader = ArbitraryBlockHeader BlockHeader
+newtype ArbitraryBlockHeader =
+    ArbitraryBlockHeader BlockHeader
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryBlockHeader where
     arbitrary = do
         ArbitraryBlockHash h1 <- arbitrary
         ArbitraryHash256 h2 <- arbitrary
-        h <- createBlockHeader <$> arbitrary <*> return h1 <*> return h2
-                               <*> arbitrary <*> arbitrary <*> arbitrary
+        h <-
+            createBlockHeader <$> arbitrary <*> return h1 <*> return h2 <*> arbitrary <*>
+            arbitrary <*>
+            arbitrary
         return $ ArbitraryBlockHeader h
 
-newtype ArbitraryBlockHash = ArbitraryBlockHash BlockHash
+newtype ArbitraryBlockHash =
+    ArbitraryBlockHash BlockHash
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryBlockHash where
@@ -53,7 +58,8 @@ instance Arbitrary ArbitraryBlockHash where
         return $ ArbitraryBlockHash $ BlockHash h
 
 -- | Arbitrary GetBlocks
-newtype ArbitraryGetBlocks = ArbitraryGetBlocks GetBlocks
+newtype ArbitraryGetBlocks =
+    ArbitraryGetBlocks GetBlocks
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryGetBlocks where
@@ -65,7 +71,8 @@ instance Arbitrary ArbitraryGetBlocks where
         return $ ArbitraryGetBlocks b
 
 -- | Arbitrary GetHeaders
-newtype ArbitraryGetHeaders = ArbitraryGetHeaders GetHeaders
+newtype ArbitraryGetHeaders =
+    ArbitraryGetHeaders GetHeaders
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryGetHeaders where
@@ -77,29 +84,32 @@ instance Arbitrary ArbitraryGetHeaders where
         return $ ArbitraryGetHeaders h
 
 -- | Arbitrary Headers
-newtype ArbitraryHeaders = ArbitraryHeaders Headers
+newtype ArbitraryHeaders =
+    ArbitraryHeaders Headers
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryHeaders where
-    arbitrary = ArbitraryHeaders <$> do
-        xs <- listOf1 $ do
-            ArbitraryBlockHeader h <- arbitrary
-            ArbitraryVarInt v <- arbitrary
-            return (h,v)
-        return $ Headers xs
+    arbitrary =
+        ArbitraryHeaders <$>
+        do xs <-
+               listOf1 $
+               do ArbitraryBlockHeader h <- arbitrary
+                  ArbitraryVarInt v <- arbitrary
+                  return (h, v)
+           return $ Headers xs
 
 -- | Arbitrary MerkleBlock
-newtype ArbitraryMerkleBlock = ArbitraryMerkleBlock MerkleBlock
+newtype ArbitraryMerkleBlock =
+    ArbitraryMerkleBlock MerkleBlock
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryMerkleBlock where
-    arbitrary = ArbitraryMerkleBlock <$> do
-        ArbitraryBlockHeader bh <- arbitrary
-        ntx <- arbitrary
-        hashes <- listOf1 arbitrary
-        let hashes' = map (\(ArbitraryHash256 h) -> h) hashes
-        c <- choose (1,10)
-        flags <- vectorOf (c*8) arbitrary
-        return $ MerkleBlock bh ntx hashes' flags
-
-
+    arbitrary =
+        ArbitraryMerkleBlock <$>
+        do ArbitraryBlockHeader bh <- arbitrary
+           ntx <- arbitrary
+           hashes <- listOf1 arbitrary
+           let hashes' = map (\(ArbitraryHash256 h) -> h) hashes
+           c <- choose (1, 10)
+           flags <- vectorOf (c * 8) arbitrary
+           return $ MerkleBlock bh ntx hashes' flags

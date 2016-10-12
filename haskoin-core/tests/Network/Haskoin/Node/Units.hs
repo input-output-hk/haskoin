@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.Haskoin.Node.Units (tests) where
+
+module Network.Haskoin.Node.Units
+  ( tests
+  ) where
 
 import           Test.Framework                 (Test, testGroup)
 import           Test.Framework.Providers.HUnit (testCase)
@@ -13,13 +16,15 @@ import           Network.Haskoin.Node
 import           Network.Haskoin.Util
 
 tests :: [Test]
-tests =
-    [ -- Test cases come from bitcoind /src/test/bloom_tests.cpp
-      testGroup "Bloom Filters"
-        [ testCase "Bloom Filter Vector 1" bloomFilter1
-        , testCase "Bloom Filter Vector 2" bloomFilter2
-        , testCase "Bloom Filter Vector 3" bloomFilter3
-        ]
+tests
+-- Test cases come from bitcoind /src/test/bloom_tests.cpp
+ =
+    [ testGroup
+          "Bloom Filters"
+          [ testCase "Bloom Filter Vector 1" bloomFilter1
+          , testCase "Bloom Filter Vector 2" bloomFilter2
+          , testCase "Bloom Filter Vector 3" bloomFilter3
+          ]
     ]
 
 bloomFilter1 :: Assertion
@@ -70,4 +75,3 @@ bloomFilter3 = do
     k = fromJust $ fromWif "5Kg1gnAjaLfKiwhhPpGS3QfRg2m6awQvaj98JCZBZQ5SuS2F15C"
     p = derivePubKey k
     bs = fromJust $ decodeHex "038fc16b080000000000000001"
-

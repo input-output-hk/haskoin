@@ -1,15 +1,15 @@
 module Network.Haskoin.Node.Bloom
-( BloomFlags(..)
-, BloomFilter(..)
-, FilterLoad(..)
-, FilterAdd(..)
-, bloomCreate
-, bloomInsert
-, bloomContains
-, isBloomValid
-, isBloomEmpty
-, isBloomFull
-) where
+  ( BloomFlags(..)
+  , BloomFilter(..)
+  , FilterLoad(..)
+  , FilterAdd(..)
+  , bloomCreate
+  , bloomInsert
+  , bloomContains
+  , isBloomValid
+  , isBloomEmpty
+  , isBloomFull
+  ) where
 
 import           Control.DeepSeq            (NFData, rnf)
 import           Control.Monad              (forM_, replicateM)
@@ -20,10 +20,8 @@ import qualified Data.Foldable              as F
 import           Data.Hash.Murmur           (murmur3)
 import qualified Data.Sequence              as S
 import           Data.Serialize             (Serialize, get, put)
-import           Data.Serialize.Get         (getByteString, getWord32le,
-                                             getWord8)
-import           Data.Serialize.Put         (putByteString, putWord32le,
-                                             putWord8)
+import           Data.Serialize.Get         (getByteString, getWord32le, getWord8)
+import           Data.Serialize.Put         (putByteString, putWord32le, putWord8)
 import           Data.Word
 
 import           Network.Haskoin.Node.Types
@@ -47,14 +45,15 @@ bitMask = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]
 -- | The bloom flags are used to tell the remote peer how to auto-update
 -- the provided bloom filter.
 data BloomFlags
-    = BloomUpdateNone         -- ^ Never update
-    | BloomUpdateAll          -- ^ Auto-update on all outputs
+    = BloomUpdateNone -- ^ Never update
+    | BloomUpdateAll -- ^ Auto-update on all outputs
     | BloomUpdateP2PubKeyOnly
-    -- ^ Only auto-update on outputs that are pay-to-pubkey or pay-to-multisig.
-    -- This is the default setting.
+      -- ^ Only auto-update on outputs that are pay-to-pubkey or pay-to-multisig.
+      -- This is the default setting.
     deriving (Eq, Show, Read)
 
-instance NFData BloomFlags where rnf x = seq x ()
+instance NFData BloomFlags where
+    rnf x = seq x ()
 
 instance Serialize BloomFlags where
     get = go =<< getWord8
@@ -63,11 +62,12 @@ instance Serialize BloomFlags where
         go 1 = return BloomUpdateAll
         go 2 = return BloomUpdateP2PubKeyOnly
         go _ = fail "BloomFlags get: Invalid bloom flag"
-
-    put f = putWord8 $ case f of
-        BloomUpdateNone         -> 0
-        BloomUpdateAll          -> 1
-        BloomUpdateP2PubKeyOnly -> 2
+    put f =
+        putWord8 $
+        case f of
+            BloomUpdateNone         -> 0
+            BloomUpdateAll          -> 1
+            BloomUpdateP2PubKeyOnly -> 2
 
 -- | A bloom filter is a probabilistic data structure that SPV clients send to
 -- other peers to filter the set of transactions received from them. Bloom
@@ -77,28 +77,24 @@ instance Serialize BloomFlags where
 -- versus privacy.
 data BloomFilter = BloomFilter
     { bloomData      :: !(S.Seq Word8)
-    -- ^ Bloom filter data
+      -- ^ Bloom filter data
     , bloomHashFuncs :: !Word32
-    -- ^ Number of hash functions for this filter
+      -- ^ Number of hash functions for this filter
     , bloomTweak     :: !Word32
-    -- ^ Hash function random nonce
+      -- ^ Hash function random nonce
     , bloomFlags     :: !BloomFlags
-    -- ^ Bloom filter auto-update flags
-    }
-    deriving (Eq, Show, Read)
+      -- ^ Bloom filter auto-update flags
+    } deriving (Eq, Show, Read)
 
 instance NFData BloomFilter where
-    rnf (BloomFilter d h t g) =
-        rnf d `seq` rnf h `seq` rnf t `seq` rnf g
+    rnf (BloomFilter d h t g) = rnf d `seq` rnf h `seq` rnf t `seq` rnf g
 
 instance Serialize BloomFilter where
-
-    get = BloomFilter <$> (S.fromList <$> (readDat =<< get))
-                      <*> getWord32le <*> getWord32le
-                      <*> get
+    get =
+        BloomFilter <$> (S.fromList <$> (readDat =<< get)) <*> getWord32le <*> getWord32le <*>
+        get
       where
         readDat (VarInt len) = replicateM (fromIntegral len) getWord8
-
     put (BloomFilter dat hashFuncs tweak flags) = do
         put $ VarInt $ fromIntegral $ S.length dat
         forM_ (F.toList dat) putWord8
@@ -107,8 +103,9 @@ instance Serialize BloomFilter where
         put flags
 
 -- | Set a new bloom filter on the peer connection.
-newtype FilterLoad = FilterLoad { filterLoadBloomFilter :: BloomFilter }
-    deriving (Eq, Show, Read)
+newtype FilterLoad = FilterLoad
+    { filterLoadBloomFilter :: BloomFilter
+    } deriving (Eq, Show, Read)
 
 instance NFData FilterLoad where
     rnf (FilterLoad f) = rnf f
@@ -119,8 +116,9 @@ instance Serialize FilterLoad where
 
 -- | Add the given data element to the connections current filter without
 -- requiring a completely new one to be set.
-newtype FilterAdd = FilterAdd { getFilterData :: BS.ByteString }
-    deriving (Eq, Show, Read)
+newtype FilterAdd = FilterAdd
+    { getFilterData :: BS.ByteString
+    } deriving (Eq, Show, Read)
 
 instance NFData FilterAdd where
     rnf (FilterAdd f) = rnf f
@@ -130,35 +128,33 @@ instance Serialize FilterAdd where
         (VarInt len) <- get
         dat <- getByteString $ fromIntegral len
         return $ FilterAdd dat
-
     put (FilterAdd bs) = do
         put $ VarInt $ fromIntegral $ BS.length bs
         putByteString bs
 
-
 -- | Build a bloom filter that will provide the given false positive rate when
 -- the given number of elements have been inserted.
-bloomCreate :: Int          -- ^ Number of elements
-            -> Double       -- ^ False positive rate
-            -> Word32
-             -- ^ A random nonce (tweak) for the hash function. It should be
-             -- a random number but the secureness of the random value is not
-             -- of geat consequence.
-            -> BloomFlags   -- ^ Bloom filter flags
-            -> BloomFilter  -- ^ Bloom filter
-bloomCreate numElem fpRate =
-    BloomFilter (S.replicate bloomSize 0) numHashF
+bloomCreate
+    :: Int -- ^ Number of elements
+    -> Double -- ^ False positive rate
+    -> Word32
+       -- ^ A random nonce (tweak) for the hash function. It should be
+       -- a random number but the secureness of the random value is not
+       -- of geat consequence.
+    -> BloomFlags -- ^ Bloom filter flags
+    -> BloomFilter -- ^ Bloom filter
+bloomCreate numElem fpRate = BloomFilter (S.replicate bloomSize 0) numHashF
   where
-    -- Bloom filter size in bytes
     bloomSize = truncate $ (min a b) / 8
     -- Suggested size in bits
-    a         = -1 / ln2Squared * (fromIntegral numElem) * log fpRate
+    a = -1 / ln2Squared * (fromIntegral numElem) * log fpRate
     -- Maximum size in bits
-    b         = fromIntegral $ maxBloomSize * 8
-    numHashF  = truncate $ min c (fromIntegral maxHashFuncs)
+    b = fromIntegral $ maxBloomSize * 8
+    numHashF = truncate $ min c (fromIntegral maxHashFuncs)
     -- Suggested number of hash functions
-    c         = (fromIntegral bloomSize) * 8 / (fromIntegral numElem) * ln2
+    c = (fromIntegral bloomSize) * 8 / (fromIntegral numElem) * ln2
 
+-- Bloom filter size in bytes
 bloomHash :: BloomFilter -> Word32 -> BS.ByteString -> Word32
 bloomHash bfilter hashNum bs =
     murmur3 seed bs `mod` (fromIntegral (S.length (bloomData bfilter)) * 8)
@@ -167,38 +163,46 @@ bloomHash bfilter hashNum bs =
 
 -- | Insert arbitrary data into a bloom filter. Returns the new bloom filter
 -- containing the new data.
-bloomInsert :: BloomFilter    -- ^ Original bloom filter
-            -> BS.ByteString  -- ^ New data to insert
-            -> BloomFilter    -- ^ Bloom filter containing the new data
+bloomInsert
+    :: BloomFilter -- ^ Original bloom filter
+    -> BS.ByteString -- ^ New data to insert
+    -> BloomFilter -- ^ Bloom filter containing the new data
 bloomInsert bfilter bs
     | isBloomFull bfilter = bfilter
-    | otherwise = bfilter { bloomData = newData }
+    | otherwise =
+        bfilter
+        { bloomData = newData
+        }
   where
-    idxs    = map (\i -> bloomHash bfilter i bs) [0..bloomHashFuncs bfilter - 1]
-    upd s i = S.adjust (.|. bitMask !! fromIntegral (7 .&. i))
-                       (fromIntegral $ i `shiftR` 3) s
+    idxs = map (\i -> bloomHash bfilter i bs) [0 .. bloomHashFuncs bfilter - 1]
+    upd s i =
+        S.adjust
+            (.|. bitMask !! fromIntegral (7 .&. i))
+            (fromIntegral $ i `shiftR` 3)
+            s
     newData = foldl upd (bloomData bfilter) idxs
 
 -- | Tests if some arbitrary data matches the filter. This can be either because
 -- the data was inserted into the filter or because it is a false positive.
-bloomContains :: BloomFilter    -- ^ Bloom filter
-              -> BS.ByteString
-              -- ^ Data that will be checked against the given bloom filter
-              -> Bool
-              -- ^ Returns True if the data matches the filter
+bloomContains
+    :: BloomFilter -- ^ Bloom filter
+    -> BS.ByteString
+       -- ^ Data that will be checked against the given bloom filter
+    -> Bool -- ^ Returns True if the data matches the filter
 bloomContains bfilter bs
-    | isBloomFull bfilter  = True
+    | isBloomFull bfilter = True
     | isBloomEmpty bfilter = False
-    | otherwise            = all isSet idxs
+    | otherwise = all isSet idxs
   where
-    s       = bloomData bfilter
-    idxs    = map (\i -> bloomHash bfilter i bs) [0..bloomHashFuncs bfilter - 1]
-    isSet i = (S.index s (fromIntegral $ i `shiftR` 3))
-          .&. (bitMask !! fromIntegral (7 .&. i)) /= 0
+    s = bloomData bfilter
+    idxs = map (\i -> bloomHash bfilter i bs) [0 .. bloomHashFuncs bfilter - 1]
+    isSet i =
+        (S.index s (fromIntegral $ i `shiftR` 3)) .&.
+        (bitMask !! fromIntegral (7 .&. i)) /=
+        0
 
 -- TODO: Write bloomRelevantUpdate
 -- bloomRelevantUpdate :: BloomFilter -> Tx -> Hash256 -> Maybe BloomFilter
-
 -- | Returns True if the filter is empty (all bytes set to 0x00)
 isBloomEmpty :: BloomFilter -> Bool
 isBloomEmpty bfilter = all (== 0x00) $ F.toList $ bloomData bfilter
@@ -208,9 +212,9 @@ isBloomFull :: BloomFilter -> Bool
 isBloomFull bfilter = all (== 0xff) $ F.toList $ bloomData bfilter
 
 -- | Tests if a given bloom filter is valid.
-isBloomValid :: BloomFilter -- ^ Bloom filter to test
-             -> Bool        -- ^ True if the given filter is valid
+isBloomValid
+    :: BloomFilter -- ^ Bloom filter to test
+    -> Bool -- ^ True if the given filter is valid
 isBloomValid bfilter =
     (S.length $ bloomData bfilter) <= maxBloomSize &&
     (bloomHashFuncs bfilter) <= maxHashFuncs
-

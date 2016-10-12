@@ -2,26 +2,26 @@
   Arbitrary types for Network.Haskoin.Transaction
 -}
 module Network.Haskoin.Test.Transaction
-( ArbitrarySatoshi(..)
-, ArbitraryTx(..)
-, ArbitraryTxHash(..)
-, ArbitraryTxIn(..)
-, ArbitraryTxOut(..)
-, ArbitraryOutPoint(..)
-, ArbitraryAddrOnlyTx(..)
-, ArbitraryAddrOnlyTxIn(..)
-, ArbitraryAddrOnlyTxOut(..)
-, ArbitrarySigInput(..)
-, ArbitraryPKSigInput(..)
-, ArbitraryPKHashSigInput(..)
-, ArbitraryMSSigInput(..)
-, ArbitrarySHSigInput(..)
-, ArbitrarySigningData(..)
-, ArbitraryPartialTxs(..)
-) where
+  ( ArbitrarySatoshi(..)
+  , ArbitraryTx(..)
+  , ArbitraryTxHash(..)
+  , ArbitraryTxIn(..)
+  , ArbitraryTxOut(..)
+  , ArbitraryOutPoint(..)
+  , ArbitraryAddrOnlyTx(..)
+  , ArbitraryAddrOnlyTxIn(..)
+  , ArbitraryAddrOnlyTxOut(..)
+  , ArbitrarySigInput(..)
+  , ArbitraryPKSigInput(..)
+  , ArbitraryPKHashSigInput(..)
+  , ArbitraryMSSigInput(..)
+  , ArbitrarySHSigInput(..)
+  , ArbitrarySigningData(..)
+  , ArbitraryPartialTxs(..)
+  ) where
 
-import           Test.QuickCheck             (Arbitrary, arbitrary, choose,
-                                              elements, oneof, vectorOf)
+import           Test.QuickCheck             (Arbitrary, arbitrary, choose, elements,
+                                              oneof, vectorOf)
 
 import           Control.Monad               (forM)
 
@@ -38,7 +38,8 @@ import           Network.Haskoin.Script
 import           Network.Haskoin.Transaction
 import           Network.Haskoin.Util
 
-newtype ArbitraryTxHash = ArbitraryTxHash TxHash
+newtype ArbitraryTxHash =
+    ArbitraryTxHash TxHash
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryTxHash where
@@ -47,7 +48,8 @@ instance Arbitrary ArbitraryTxHash where
         return $ ArbitraryTxHash $ TxHash h
 
 -- | Arbitrary amount of Satoshi as Word64 (Between 1 and 21e14)
-newtype ArbitrarySatoshi = ArbitrarySatoshi Word64
+newtype ArbitrarySatoshi =
+    ArbitrarySatoshi Word64
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitrarySatoshi where
@@ -57,19 +59,21 @@ instance Coin ArbitrarySatoshi where
     coinValue (ArbitrarySatoshi v) = v
 
 -- | Arbitrary OutPoint
-newtype ArbitraryOutPoint = ArbitraryOutPoint OutPoint
+newtype ArbitraryOutPoint =
+    ArbitraryOutPoint OutPoint
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryOutPoint where
     arbitrary = do
-        op <- do
-            ArbitraryTxHash tx <- arbitrary
-            i  <- arbitrary
-            return $ OutPoint tx i
+        op <-
+            do ArbitraryTxHash tx <- arbitrary
+               i <- arbitrary
+               return $ OutPoint tx i
         return $ ArbitraryOutPoint op
 
 -- | Arbitrary TxOut
-newtype ArbitraryTxOut = ArbitraryTxOut TxOut
+newtype ArbitraryTxOut =
+    ArbitraryTxOut TxOut
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryTxOut where
@@ -79,7 +83,8 @@ instance Arbitrary ArbitraryTxOut where
         return $ ArbitraryTxOut $ TxOut v $ encodeOutputBS out
 
 -- | Arbitrary TxIn
-newtype ArbitraryTxIn = ArbitraryTxIn TxIn
+newtype ArbitraryTxIn =
+    ArbitraryTxIn TxIn
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryTxIn where
@@ -90,14 +95,15 @@ instance Arbitrary ArbitraryTxIn where
         return $ ArbitraryTxIn $ TxIn o (encodeInputBS inp) s
 
 -- | Arbitrary Tx
-newtype ArbitraryTx = ArbitraryTx Tx
+newtype ArbitraryTx =
+    ArbitraryTx Tx
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryTx where
     arbitrary = do
         v <- arbitrary
-        ni <- choose (0,5)
-        no <- choose (0,5)
+        ni <- choose (0, 5)
+        no <- choose (0, 5)
         inps <- vectorOf ni $ arbitrary >>= \(ArbitraryTxIn i) -> return i
         outs <- vectorOf no $ arbitrary >>= \(ArbitraryTxOut o) -> return o
         let uniqueInps = nubBy (\a b -> prevOutput a == prevOutput b) inps
@@ -107,66 +113,77 @@ instance Arbitrary ArbitraryTx where
 -- | Arbitrary Tx containing only inputs of type SpendPKHash, SpendScriptHash
 -- (multisig) and outputs of type PayPKHash and PaySH. Only compressed
 -- public keys are used.
-newtype ArbitraryAddrOnlyTx = ArbitraryAddrOnlyTx Tx
+newtype ArbitraryAddrOnlyTx =
+    ArbitraryAddrOnlyTx Tx
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryAddrOnlyTx where
     arbitrary = do
         v <- arbitrary
-        ni <- choose (0,5)
-        no <- choose (0,5)
-        inps <- vectorOf ni $
-            arbitrary >>= \(ArbitraryAddrOnlyTxIn i) -> return i
-        outs <- vectorOf no $
-            arbitrary >>= \(ArbitraryAddrOnlyTxOut o) -> return o
+        ni <- choose (0, 5)
+        no <- choose (0, 5)
+        inps <-
+            vectorOf ni $ arbitrary >>= \(ArbitraryAddrOnlyTxIn i) -> return i
+        outs <-
+            vectorOf no $ arbitrary >>= \(ArbitraryAddrOnlyTxOut o) -> return o
         t <- arbitrary
         return $ ArbitraryAddrOnlyTx $ createTx v inps outs t
 
 -- | Arbitrary TxIn that can only be of type SpendPKHash or
 -- SpendScriptHash (multisig). Only compressed public keys are used.
-newtype ArbitraryAddrOnlyTxIn = ArbitraryAddrOnlyTxIn TxIn
+newtype ArbitraryAddrOnlyTxIn =
+    ArbitraryAddrOnlyTxIn TxIn
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryAddrOnlyTxIn where
     arbitrary = do
         ArbitraryOutPoint o <- arbitrary
-        inp <- oneof
-            [ arbitrary >>= \(ArbitraryPKHashCInput i) -> return i
-            , arbitrary >>= \(ArbitraryMulSigSHCInput i) -> return i
-            ]
+        inp <-
+            oneof
+                [ arbitrary >>= \(ArbitraryPKHashCInput i) -> return i
+                , arbitrary >>= \(ArbitraryMulSigSHCInput i) -> return i
+                ]
         s <- arbitrary
         return $ ArbitraryAddrOnlyTxIn $ TxIn o (encodeInputBS inp) s
 
 -- | Arbitrary TxOut that can only be of type PayPKHash or PaySH
-newtype ArbitraryAddrOnlyTxOut = ArbitraryAddrOnlyTxOut TxOut
+newtype ArbitraryAddrOnlyTxOut =
+    ArbitraryAddrOnlyTxOut TxOut
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryAddrOnlyTxOut where
     arbitrary = do
         ArbitrarySatoshi v <- arbitrary
-        out <- oneof
-            [ arbitrary >>= \(ArbitraryPKHashOutput o) -> return o
-            , arbitrary >>= \(ArbitrarySHOutput o) -> return o
-            ]
+        out <-
+            oneof
+                [ arbitrary >>= \(ArbitraryPKHashOutput o) -> return o
+                , arbitrary >>= \(ArbitrarySHOutput o) -> return o
+                ]
         return $ ArbitraryAddrOnlyTxOut $ TxOut v $ encodeOutputBS out
 
 -- | Arbitrary SigInput with the corresponding private keys used
 -- to generate the ScriptOutput or RedeemScript
-data ArbitrarySigInput = ArbitrarySigInput SigInput [PrvKey]
+data ArbitrarySigInput =
+    ArbitrarySigInput SigInput
+                      [PrvKey]
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitrarySigInput where
     arbitrary = do
-        (si, ks) <- oneof
-            [ arbitrary >>= \(ArbitraryPKSigInput si k) -> return (si, [k])
-            , arbitrary >>= \(ArbitraryPKHashSigInput si k) -> return (si, [k])
-            , arbitrary >>= \(ArbitraryMSSigInput si ks) -> return (si, ks)
-            , arbitrary >>= \(ArbitrarySHSigInput si ks) -> return (si, ks)
-            ]
+        (si, ks) <-
+            oneof
+                [ arbitrary >>= \(ArbitraryPKSigInput si k) -> return (si, [k])
+                , arbitrary >>=
+                  \(ArbitraryPKHashSigInput si k) -> return (si, [k])
+                , arbitrary >>= \(ArbitraryMSSigInput si ks) -> return (si, ks)
+                , arbitrary >>= \(ArbitrarySHSigInput si ks) -> return (si, ks)
+                ]
         return $ ArbitrarySigInput si ks
 
 -- | Arbitrary SigInput with a ScriptOutput of type PayPK
-data ArbitraryPKSigInput = ArbitraryPKSigInput SigInput PrvKey
+data ArbitraryPKSigInput =
+    ArbitraryPKSigInput SigInput
+                        PrvKey
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryPKSigInput where
@@ -178,7 +195,9 @@ instance Arbitrary ArbitraryPKSigInput where
         return $ ArbitraryPKSigInput (SigInput out op sh Nothing) k
 
 -- | Arbitrary SigInput with a ScriptOutput of type PayPKHash
-data ArbitraryPKHashSigInput = ArbitraryPKHashSigInput SigInput PrvKey
+data ArbitraryPKHashSigInput =
+    ArbitraryPKHashSigInput SigInput
+                            PrvKey
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryPKHashSigInput where
@@ -190,7 +209,9 @@ instance Arbitrary ArbitraryPKHashSigInput where
         return $ ArbitraryPKHashSigInput (SigInput out op sh Nothing) k
 
 -- | Arbitrary SigInput with a ScriptOutput of type PayMulSig
-data ArbitraryMSSigInput = ArbitraryMSSigInput SigInput [PrvKey]
+data ArbitraryMSSigInput =
+    ArbitraryMSSigInput SigInput
+                        [PrvKey]
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryMSSigInput where
@@ -200,18 +221,20 @@ instance Arbitrary ArbitraryMSSigInput where
         let out = PayMulSig (map derivePubKey ks) m
         ArbitraryOutPoint op <- arbitrary
         ArbitraryValidSigHash sh <- arbitrary
-        perm <- choose (0,n-1)
+        perm <- choose (0, n - 1)
         let ksPerm = take m $ permutations ks !! perm
         return $ ArbitraryMSSigInput (SigInput out op sh Nothing) ksPerm
 
 -- | Arbitrary SigInput with  ScriptOutput of type PaySH and a RedeemScript
-data ArbitrarySHSigInput = ArbitrarySHSigInput SigInput [PrvKey]
+data ArbitrarySHSigInput =
+    ArbitrarySHSigInput SigInput
+                        [PrvKey]
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitrarySHSigInput where
     arbitrary = do
-        (rdm, ks, op, sh) <- oneof
-            [ a <$> arbitrary, b <$> arbitrary, c <$> arbitrary ]
+        (rdm, ks, op, sh) <-
+            oneof [a <$> arbitrary, b <$> arbitrary, c <$> arbitrary]
         let out = PayScriptHash $ scriptAddr rdm
         return $ ArbitrarySHSigInput (SigInput out op sh $ Just rdm) ks
       where
@@ -221,39 +244,47 @@ instance Arbitrary ArbitrarySHSigInput where
 
 -- | Arbitrary Tx (empty TxIn), SigInputs and PrvKeys that can be passed to
 -- signTx or detSignTx to fully sign the Tx.
-data ArbitrarySigningData = ArbitrarySigningData Tx [SigInput] [PrvKey]
+data ArbitrarySigningData =
+    ArbitrarySigningData Tx
+                         [SigInput]
+                         [PrvKey]
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitrarySigningData where
     arbitrary = do
         v <- arbitrary
-        ni <- choose (1,5)
-        no <- choose (1,5)
+        ni <- choose (1, 5)
+        no <- choose (1, 5)
         sigis <- map f <$> vectorOf ni arbitrary
-        let uSigis = nubBy (\(a,_) (b,_) -> sigDataOP a == sigDataOP b) sigis
-        inps <- forM uSigis $ \(s,_) -> do
-            sq <- arbitrary
-            return $ TxIn (sigDataOP s) BS.empty sq
+        let uSigis = nubBy (\(a, _) (b, _) -> sigDataOP a == sigDataOP b) sigis
+        inps <-
+            forM uSigis $
+            \(s, _) -> do
+                sq <- arbitrary
+                return $ TxIn (sigDataOP s) BS.empty sq
         outs <- map (\(ArbitraryTxOut o) -> o) <$> vectorOf no arbitrary
         l <- arbitrary
         perm <- choose (0, length inps - 1)
-        let tx   = createTx v (permutations inps !! perm) outs l
+        let tx = createTx v (permutations inps !! perm) outs l
             keys = concat $ map snd uSigis
         return $ ArbitrarySigningData tx (map fst uSigis) keys
       where
-        f (ArbitrarySigInput s ks) = (s,ks)
+        f (ArbitrarySigInput s ks) = (s, ks)
 
 data ArbitraryPartialTxs =
-    ArbitraryPartialTxs [Tx] [(ScriptOutput, OutPoint, Int, Int)]
+    ArbitraryPartialTxs [Tx]
+                        [(ScriptOutput, OutPoint, Int, Int)]
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryPartialTxs where
     arbitrary = do
         tx <- arbitraryEmptyTx
-        res <- forM (map prevOutput $ txIn tx) $ \op -> do
-            (so, rdmM, prvs, m, n) <- arbitraryData
-            txs <- mapM (singleSig so rdmM tx op) prvs
-            return (txs, (so, op, m, n))
+        res <-
+            forM (map prevOutput $ txIn tx) $
+            \op -> do
+                (so, rdmM, prvs, m, n) <- arbitraryData
+                txs <- mapM (singleSig so rdmM tx op) prvs
+                return (txs, (so, op, m, n))
         return $ ArbitraryPartialTxs (concat $ map fst res) (map snd res)
       where
         singleSig so rdmM tx op prv = do
@@ -262,25 +293,23 @@ instance Arbitrary ArbitraryPartialTxs where
             return $ fromRight $ signTx tx [sigi] [prv]
         arbitraryData = do
             ArbitraryMSParam m n <- arbitrary
-            nPrv <- choose (m,n)
-            keys <- vectorOf n $
-                (\(ArbitraryPubKey k p) -> (k, p)) <$> arbitrary
+            nPrv <- choose (m, n)
+            keys <- vectorOf n $ (\(ArbitraryPubKey k p) -> (k, p)) <$> arbitrary
             perm <- choose (0, length keys - 1)
             let pubKeys = map snd keys
                 prvKeys = take nPrv $ permutations (map fst keys) !! perm
             let so = PayMulSig pubKeys m
-            elements [ (so, Nothing, prvKeys, m, n)
-                     , (PayScriptHash $ scriptAddr so, Just so, prvKeys, m, n)
-                     ]
+            elements
+                [ (so, Nothing, prvKeys, m, n)
+                , (PayScriptHash $ scriptAddr so, Just so, prvKeys, m, n)
+                ]
         arbitraryEmptyTx = do
             v <- arbitrary
-            no <- choose (1,5)
-            ni <- choose (1,5)
+            no <- choose (1, 5)
+            ni <- choose (1, 5)
             outs <- vectorOf no $ (\(ArbitraryTxOut o) -> o) <$> arbitrary
             ops <- vectorOf ni $ (\(ArbitraryOutPoint op) -> op) <$> arbitrary
             t <- arbitrary
             s <- arbitrary
-            return $ createTx
-                v (map (\op -> TxIn op BS.empty s) (nub ops)) outs t
-
-
+            return $
+                createTx v (map (\op -> TxIn op BS.empty s) (nub ops)) outs t

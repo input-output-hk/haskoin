@@ -5,104 +5,91 @@
   multisignature transactions. A library API for /hw/ is also exposed.
 -}
 module Network.Haskoin.Wallet
-(
+  ( clientMain
+  , OutputFormat(..)
+  , Config(..)
+  , runSPVServer
+  , stopSPVServer
+  , SPVMode(..)
+  , JsonAccount(..)
+  , JsonAddr(..)
+  , JsonCoin(..)
+  , JsonTx(..)
+  , WalletRequest(..)
+  , ListRequest(..)
+  , NewAccount(..)
+  , SetAccountGap(..)
+  , OfflineTxData(..)
+  , CoinSignData(..)
+  , TxAction(..)
+  , AddressLabel(..)
+  , NodeAction(..)
+  , AccountType(..)
+  , AddressType(..)
+  , addrTypeIndex
+  , TxType(..)
+  , TxConfidence(..)
+  , AddressInfo(..)
+  , BalanceInfo(..)
+  , WalletResponse(..)
+  , TxCompleteRes(..)
+  , ListResult(..)
+  , RescanRes(..)
+  , initWallet
+  , accounts
+  , newAccount
+  , addAccountKeys
+  , getAccount
+  , isMultisigAccount
+  , isReadAccount
+  , isCompleteAccount
+  , getAddress
+  , addressesAll
+  , addresses
+  , addressList
+  , unusedAddresses
+  , addressCount
+  , setAddrLabel
+  , addressPrvKey
+  , useAddress
+  , setAccountGap
+  , firstAddrTime
+  , getPathRedeem
+  , getPathPubKey
+  , getBloomFilter
+  , txs
+  , addrTxs
+  , getTx
+  , getAccountTx
+  , importTx
+  , importNetTx
+  , signAccountTx
+  , createWalletTx
+  , signOfflineTx
+  , getOfflineTxData
+  , importMerkles
+  , walletBestBlock
+  , spendableCoins
+  , accountBalance
+  , addressBalances
+  , resetRescan
+  ) where
+
 -- *Client
-  clientMain
-, OutputFormat(..)
-, Config(..)
-
 -- *Server
-, runSPVServer
-, stopSPVServer
-, SPVMode(..)
-
 -- *API JSON Types
-, JsonAccount(..)
-, JsonAddr(..)
-, JsonCoin(..)
-, JsonTx(..)
-
 -- *API Request Types
-, WalletRequest(..)
-, ListRequest(..)
-, NewAccount(..)
-, SetAccountGap(..)
-, OfflineTxData(..)
-, CoinSignData(..)
-, TxAction(..)
-, AddressLabel(..)
-, NodeAction(..)
-, AccountType(..)
-, AddressType(..)
-, addrTypeIndex
-, TxType(..)
-, TxConfidence(..)
-, AddressInfo(..)
-, BalanceInfo(..)
-
 -- *API Response Types
-, WalletResponse(..)
-, TxCompleteRes(..)
-, ListResult(..)
-, RescanRes(..)
-
 -- *Database Accounts
-, initWallet
-, accounts
-, newAccount
-, addAccountKeys
-, getAccount
-, isMultisigAccount
-, isReadAccount
-, isCompleteAccount
-
 -- *Database Addresses
-, getAddress
-, addressesAll
-, addresses
-, addressList
-, unusedAddresses
-, addressCount
-, setAddrLabel
-, addressPrvKey
-, useAddress
-, setAccountGap
-, firstAddrTime
-, getPathRedeem
-, getPathPubKey
-
 -- *Database Bloom Filter
-, getBloomFilter
-
 -- *Database transactions
-, txs
-, addrTxs
-, getTx
-, getAccountTx
-, importTx
-, importNetTx
-, signAccountTx
-, createWalletTx
-, signOfflineTx
-, getOfflineTxData
-
 -- *Database blocks
-, importMerkles
-, walletBestBlock
-
 -- *Database coins and balances
-, spendableCoins
-, accountBalance
-, addressBalances
-
 -- *Rescan
-, resetRescan
-) where
-
 import           Network.Haskoin.Wallet.Accounts
 import           Network.Haskoin.Wallet.Client
 import           Network.Haskoin.Wallet.Server
 import           Network.Haskoin.Wallet.Settings
 import           Network.Haskoin.Wallet.Transaction
 import           Network.Haskoin.Wallet.Types
-

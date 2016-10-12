@@ -1,4 +1,6 @@
-module Network.Haskoin.Util.Tests (tests) where
+module Network.Haskoin.Util.Tests
+  ( tests
+  ) where
 
 import           Test.Framework                       (Test, testGroup)
 import           Test.Framework.Providers.QuickCheck2 (testProperty)
@@ -13,19 +15,18 @@ import           Network.Haskoin.Util
 
 tests :: [Test]
 tests =
-    [ testGroup "Utility functions"
-        [ testProperty "bsToInteger . integerToBS" getPutInteger
-        , testProperty "decodeHex . encodeHex" fromToHex
-        , testProperty "compare updateIndex with Data.Sequence" testUpdateIndex
-        , testProperty "matchTemplate" testMatchTemplate
-        , testProperty
-            "testing matchTemplate with two lists" testMatchTemplateLen
-        , testProperty "Testing Either helper functions" testEither
-        ]
+    [ testGroup
+          "Utility functions"
+          [ testProperty "bsToInteger . integerToBS" getPutInteger
+          , testProperty "decodeHex . encodeHex" fromToHex
+          , testProperty "compare updateIndex with Data.Sequence" testUpdateIndex
+          , testProperty "matchTemplate" testMatchTemplate
+          , testProperty "testing matchTemplate with two lists" testMatchTemplateLen
+          , testProperty "Testing Either helper functions" testEither
+          ]
     ]
 
 {- Various utilities -}
-
 getPutInteger :: Integer -> Bool
 getPutInteger i = (bsToInteger $ integerToBS p) == p
   where
@@ -44,8 +45,11 @@ testMatchTemplate :: [Int] -> Int -> Bool
 testMatchTemplate as i = catMaybes res == bs
   where
     res = matchTemplate as bs (==)
-    idx = if length as == 0 then 0 else i `mod` length as
-    bs  = (permutations as) !! idx
+    idx =
+        if length as == 0
+            then 0
+            else i `mod` length as
+    bs = (permutations as) !! idx
 
 testMatchTemplateLen :: [Int] -> [Int] -> Bool
 testMatchTemplateLen as bs = length bs == length res
@@ -53,13 +57,13 @@ testMatchTemplateLen as bs = length bs == length res
     res = matchTemplate as bs (==)
 
 testEither :: Either String Int -> Bool
-testEither e = case e of
-    (Right v) -> (isRight e)
-              && (not $ isLeft e)
-              && (fromRight e == v)
-              && (eitherToMaybe e == Just v)
-    (Left v)  -> (isLeft e)
-              && (not $ isRight e)
-              && (fromLeft e == v)
-              && (eitherToMaybe e == Nothing)
-
+testEither e =
+    case e of
+        (Right v) ->
+            (isRight e) &&
+            (not $ isLeft e) &&
+            (fromRight e == v) && (eitherToMaybe e == Just v)
+        (Left v) ->
+            (isLeft e) &&
+            (not $ isRight e) &&
+            (fromLeft e == v) && (eitherToMaybe e == Nothing)

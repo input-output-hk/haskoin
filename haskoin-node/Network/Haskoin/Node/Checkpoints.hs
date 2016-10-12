@@ -1,8 +1,8 @@
 module Network.Haskoin.Node.Checkpoints
-( checkpointMap
-, checkpointList
-, verifyCheckpoint
-) where
+  ( checkpointMap
+  , checkpointList
+  , verifyCheckpoint
+  ) where
 
 import qualified Data.IntMap.Strict        as M (IntMap, fromList, lookup)
 
@@ -22,7 +22,7 @@ checkpointList = checkpoints
 -- | Verify that a block hash at a given height either matches an existing
 -- checkpoint or is not a checkpoint.
 verifyCheckpoint :: Int -> BlockHash -> Bool
-verifyCheckpoint height hash = case M.lookup height checkpointMap of
-    Just value -> hash == value
-    Nothing    -> True
-
+verifyCheckpoint height hash =
+    case M.lookup height checkpointMap of
+        Just value -> hash == value
+        Nothing    -> True

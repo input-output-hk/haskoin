@@ -1,20 +1,19 @@
 module Network.Haskoin.Script.Types
-( ScriptOp(..)
-, Script(..)
-, PushDataType(..)
-, isPushOp
-, opPushData
-) where
+  ( ScriptOp(..)
+  , Script(..)
+  , PushDataType(..)
+  , isPushOp
+  , opPushData
+  ) where
 
 import           Control.DeepSeq    (NFData, rnf)
 import           Control.Monad      (forM_, unless)
 
 import qualified Data.ByteString    as BS (ByteString, length)
 import           Data.Serialize     (Serialize, get, put)
-import           Data.Serialize.Get (getByteString, getWord16le, getWord32le,
-                                     getWord8, isEmpty)
-import           Data.Serialize.Put (putByteString, putWord16le, putWord32le,
-                                     putWord8)
+import           Data.Serialize.Get (getByteString, getWord16le, getWord32le, getWord8,
+                                     isEmpty)
+import           Data.Serialize.Put (putByteString, putWord16le, putWord32le, putWord8)
 import           Data.Word          (Word8)
 
 -- | Data type representing a transaction script. Scripts are defined as lists
@@ -23,33 +22,28 @@ import           Data.Word          (Word8)
 -- * Define the spending conditions in the output of a transaction
 --
 -- * Provide the spending signatures in the input of a transaction
-data Script =
-    Script {
-             -- | List of script operators defining this script
-             scriptOps :: ![ScriptOp]
-           }
-    deriving (Eq, Show, Read)
+data Script = Script
+              -- | List of script operators defining this script
+    { scriptOps :: ![ScriptOp]
+    } deriving (Eq, Show, Read)
 
 instance NFData Script where
     rnf (Script o) = rnf o
 
 instance Serialize Script where
-    get =
-        Script <$> getScriptOps
+    get = Script <$> getScriptOps
       where
         getScriptOps = do
             empty <- isEmpty
             if empty
                 then return []
                 else (:) <$> get <*> getScriptOps
-
     put (Script ops) = forM_ ops put
 
 -- | Data type representing the type of an OP_PUSHDATA opcode.
 data PushDataType
-    =
-      -- | The next opcode bytes is data to be pushed onto the stack
-      OPCODE
+     -- | The next opcode bytes is data to be pushed onto the stack
+    = OPCODE
       -- | The next byte contains the number of bytes to be pushed onto
       -- the stack
     | OPDATA1
@@ -61,32 +55,44 @@ data PushDataType
     | OPDATA4
     deriving (Show, Read, Eq)
 
-instance NFData PushDataType where rnf x = seq x ()
+instance NFData PushDataType where
+    rnf x = seq x ()
 
 -- | Data type representing all of the operators allowed inside a 'Script'.
 data ScriptOp
-      -- Pushing Data
-    = OP_PUSHDATA !BS.ByteString !PushDataType
+     -- Pushing Data
+    = OP_PUSHDATA !BS.ByteString
+                  !PushDataType
     | OP_0
     | OP_1NEGATE
     | OP_RESERVED
-    | OP_1  | OP_2  | OP_3  | OP_4
-    | OP_5  | OP_6  | OP_7  | OP_8
-    | OP_9  | OP_10 | OP_11 | OP_12
-    | OP_13 | OP_14 | OP_15 | OP_16
-
+    | OP_1
+    | OP_2
+    | OP_3
+    | OP_4
+    | OP_5
+    | OP_6
+    | OP_7
+    | OP_8
+    | OP_9
+    | OP_10
+    | OP_11
+    | OP_12
+    | OP_13
+    | OP_14
+    | OP_15
+    | OP_16
       -- Flow control
     | OP_NOP
-    | OP_VER        -- reserved
+    | OP_VER -- reserved
     | OP_IF
     | OP_NOTIF
-    | OP_VERIF      -- resreved
-    | OP_VERNOTIF   -- reserved
+    | OP_VERIF -- resreved
+    | OP_VERNOTIF -- reserved
     | OP_ELSE
     | OP_ENDIF
     | OP_VERIFY
     | OP_RETURN
-
       -- Stack operations
     | OP_TOALTSTACK
     | OP_FROMALTSTACK
@@ -107,14 +113,12 @@ data ScriptOp
     | OP_2OVER
     | OP_2ROT
     | OP_2SWAP
-
       -- Splice
     | OP_CAT
     | OP_SUBSTR
     | OP_LEFT
     | OP_RIGHT
     | OP_SIZE
-
       -- Bitwise logic
     | OP_INVERT
     | OP_AND
@@ -124,7 +128,6 @@ data ScriptOp
     | OP_EQUALVERIFY
     | OP_RESERVED1
     | OP_RESERVED2
-
       -- Arithmetic
     | OP_1ADD
     | OP_1SUB
@@ -153,7 +156,6 @@ data ScriptOp
     | OP_MIN
     | OP_MAX
     | OP_WITHIN
-
       -- Crypto
     | OP_RIPEMD160
     | OP_SHA1
@@ -165,28 +167,29 @@ data ScriptOp
     | OP_CHECKSIGVERIFY
     | OP_CHECKMULTISIG
     | OP_CHECKMULTISIGVERIFY
-
       -- Expansion
-    | OP_NOP1 | OP_NOP2 | OP_NOP3 | OP_NOP4 | OP_NOP5
-    | OP_NOP6 | OP_NOP7 | OP_NOP8 | OP_NOP9 | OP_NOP10
-
-
+    | OP_NOP1
+    | OP_NOP2
+    | OP_NOP3
+    | OP_NOP4
+    | OP_NOP5
+    | OP_NOP6
+    | OP_NOP7
+    | OP_NOP8
+    | OP_NOP9
+    | OP_NOP10
       -- Other
     | OP_PUBKEYHASH
     | OP_PUBKEY
     | OP_INVALIDOPCODE !Word8
-
-        deriving (Show, Read, Eq)
-
+    deriving (Show, Read, Eq)
 
 instance NFData ScriptOp where
     rnf (OP_PUSHDATA b t)    = rnf b `seq` rnf t
     rnf (OP_INVALIDOPCODE c) = rnf c
     rnf x                    = x `seq` ()
 
-
 instance Serialize ScriptOp where
-
     get = go =<< (fromIntegral <$> getWord8)
       where
         go op
@@ -195,18 +198,17 @@ instance Serialize ScriptOp where
                 payload <- getByteString (fromIntegral op)
                 return $ OP_PUSHDATA payload OPCODE
             | op == 0x4c = do
-                len  <- getWord8
+                len <- getWord8
                 payload <- getByteString (fromIntegral len)
                 return $ OP_PUSHDATA payload OPDATA1
             | op == 0x4d = do
-                len  <- getWord16le
+                len <- getWord16le
                 payload <- getByteString (fromIntegral len)
                 return $ OP_PUSHDATA payload OPDATA2
             | op == 0x4e = do
-                len  <- getWord32le
+                len <- getWord32le
                 payload <- getByteString (fromIntegral len)
                 return $ OP_PUSHDATA payload OPDATA4
-
             | op == 0x4f = return $ OP_1NEGATE
             | op == 0x50 = return $ OP_RESERVED
             | op == 0x51 = return $ OP_1
@@ -227,16 +229,15 @@ instance Serialize ScriptOp where
             | op == 0x60 = return $ OP_16
             -- Flow control
             | op == 0x61 = return $ OP_NOP
-            | op == 0x62 = return $ OP_VER        -- reserved
+            | op == 0x62 = return $ OP_VER -- reserved
             | op == 0x63 = return $ OP_IF
             | op == 0x64 = return $ OP_NOTIF
-            | op == 0x65 = return $ OP_VERIF      -- reserved
-            | op == 0x66 = return $ OP_VERNOTIF   -- reserved
+            | op == 0x65 = return $ OP_VERIF -- reserved
+            | op == 0x66 = return $ OP_VERNOTIF -- reserved
             | op == 0x67 = return $ OP_ELSE
             | op == 0x68 = return $ OP_ENDIF
             | op == 0x69 = return $ OP_VERIFY
             | op == 0x6a = return $ OP_RETURN
-
             -- Stack
             | op == 0x6b = return $ OP_TOALTSTACK
             | op == 0x6c = return $ OP_FROMALTSTACK
@@ -257,14 +258,12 @@ instance Serialize ScriptOp where
             | op == 0x7b = return $ OP_ROT
             | op == 0x7c = return $ OP_SWAP
             | op == 0x7d = return $ OP_TUCK
-
             -- Splice
             | op == 0x7e = return $ OP_CAT
             | op == 0x7f = return $ OP_SUBSTR
             | op == 0x80 = return $ OP_LEFT
             | op == 0x81 = return $ OP_RIGHT
             | op == 0x82 = return $ OP_SIZE
-
             -- Bitwise logic
             | op == 0x83 = return $ OP_INVERT
             | op == 0x84 = return $ OP_AND
@@ -274,7 +273,6 @@ instance Serialize ScriptOp where
             | op == 0x88 = return $ OP_EQUALVERIFY
             | op == 0x89 = return $ OP_RESERVED1
             | op == 0x8a = return $ OP_RESERVED2
-
             -- Arithmetic
             | op == 0x8b = return $ OP_1ADD
             | op == 0x8c = return $ OP_1SUB
@@ -303,7 +301,6 @@ instance Serialize ScriptOp where
             | op == 0xa3 = return $ OP_MIN
             | op == 0xa4 = return $ OP_MAX
             | op == 0xa5 = return $ OP_WITHIN
-
             -- Crypto
             | op == 0xa6 = return $ OP_RIPEMD160
             | op == 0xa7 = return $ OP_SHA1
@@ -315,7 +312,6 @@ instance Serialize ScriptOp where
             | op == 0xad = return $ OP_CHECKSIGVERIFY
             | op == 0xae = return $ OP_CHECKMULTISIG
             | op == 0xaf = return $ OP_CHECKMULTISIGVERIFY
-
             -- More NOPs
             | op == 0xb0 = return $ OP_NOP1
             | op == 0xb1 = return $ OP_NOP2
@@ -327,203 +323,189 @@ instance Serialize ScriptOp where
             | op == 0xb7 = return $ OP_NOP8
             | op == 0xb8 = return $ OP_NOP9
             | op == 0xb9 = return $ OP_NOP10
-
             -- Constants
             | op == 0xfd = return $ OP_PUBKEYHASH
             | op == 0xfe = return $ OP_PUBKEY
-
             | otherwise = return $ OP_INVALIDOPCODE op
-
-    put op = case op of
-
-        (OP_PUSHDATA payload optype)-> do
-            let len = BS.length payload
-            case optype of
-                OPCODE -> do
-                    unless (len <= 0x4b) $ fail
-                        "OP_PUSHDATA OPCODE: Payload size too big"
-                    putWord8 $ fromIntegral len
-                OPDATA1 -> do
-                    unless (len <= 0xff) $ fail
-                        "OP_PUSHDATA OPDATA1: Payload size too big"
-                    putWord8 0x4c
-                    putWord8 $ fromIntegral len
-                OPDATA2 -> do
-                    unless (len <= 0xffff) $ fail
-                        "OP_PUSHDATA OPDATA2: Payload size too big"
-                    putWord8 0x4d
-                    putWord16le $ fromIntegral len
-                OPDATA4 -> do
-                    unless (len <= 0x7fffffff) $ fail
-                        "OP_PUSHDATA OPDATA4: Payload size too big"
-                    putWord8 0x4e
-                    putWord32le $ fromIntegral len
-            putByteString payload
-
-        -- Constants
-        OP_0                 -> putWord8 0x00
-        OP_1NEGATE           -> putWord8 0x4f
-        OP_RESERVED          -> putWord8 0x50
-        OP_1                 -> putWord8 0x51
-        OP_2                 -> putWord8 0x52
-        OP_3                 -> putWord8 0x53
-        OP_4                 -> putWord8 0x54
-        OP_5                 -> putWord8 0x55
-        OP_6                 -> putWord8 0x56
-        OP_7                 -> putWord8 0x57
-        OP_8                 -> putWord8 0x58
-        OP_9                 -> putWord8 0x59
-        OP_10                -> putWord8 0x5a
-        OP_11                -> putWord8 0x5b
-        OP_12                -> putWord8 0x5c
-        OP_13                -> putWord8 0x5d
-        OP_14                -> putWord8 0x5e
-        OP_15                -> putWord8 0x5f
-        OP_16                -> putWord8 0x60
-
-        -- Crypto Constants
-        OP_PUBKEY            -> putWord8 0xfe
-        OP_PUBKEYHASH        -> putWord8 0xfd
-
-        -- Invalid Opcodes
-        (OP_INVALIDOPCODE x) -> putWord8 x
-
-        -- Flow Control
-        OP_NOP               -> putWord8 0x61
-        OP_VER               -> putWord8 0x62
-        OP_IF                -> putWord8 0x63
-        OP_NOTIF             -> putWord8 0x64
-        OP_VERIF             -> putWord8 0x65
-        OP_VERNOTIF          -> putWord8 0x66
-        OP_ELSE              -> putWord8 0x67
-        OP_ENDIF             -> putWord8 0x68
-        OP_VERIFY            -> putWord8 0x69
-        OP_RETURN            -> putWord8 0x6a
-
-        -- Stack Operations
-        OP_TOALTSTACK        -> putWord8 0x6b
-        OP_FROMALTSTACK      -> putWord8 0x6c
-        OP_2DROP             -> putWord8 0x6d
-        OP_2DUP              -> putWord8 0x6e
-        OP_3DUP              -> putWord8 0x6f
-        OP_2OVER             -> putWord8 0x70
-        OP_2ROT              -> putWord8 0x71
-        OP_2SWAP             -> putWord8 0x72
-        OP_IFDUP             -> putWord8 0x73
-        OP_DEPTH             -> putWord8 0x74
-        OP_DROP              -> putWord8 0x75
-        OP_DUP               -> putWord8 0x76
-        OP_NIP               -> putWord8 0x77
-        OP_OVER              -> putWord8 0x78
-        OP_PICK              -> putWord8 0x79
-        OP_ROLL              -> putWord8 0x7a
-        OP_ROT               -> putWord8 0x7b
-        OP_SWAP              -> putWord8 0x7c
-        OP_TUCK              -> putWord8 0x7d
-
-        -- Splice
-        OP_CAT               -> putWord8 0x7e
-        OP_SUBSTR            -> putWord8 0x7f
-        OP_LEFT              -> putWord8 0x80
-        OP_RIGHT             -> putWord8 0x81
-        OP_SIZE              -> putWord8 0x82
-
-        -- Bitwise Logic
-        OP_INVERT            -> putWord8 0x83
-        OP_AND               -> putWord8 0x84
-        OP_OR                -> putWord8 0x85
-        OP_XOR               -> putWord8 0x86
-        OP_EQUAL             -> putWord8 0x87
-        OP_EQUALVERIFY       -> putWord8 0x88
-        OP_RESERVED1         -> putWord8 0x89
-        OP_RESERVED2         -> putWord8 0x8a
-
-        -- Arithmetic
-        OP_1ADD              -> putWord8 0x8b
-        OP_1SUB              -> putWord8 0x8c
-        OP_2MUL              -> putWord8 0x8d
-        OP_2DIV              -> putWord8 0x8e
-        OP_NEGATE            -> putWord8 0x8f
-        OP_ABS               -> putWord8 0x90
-        OP_NOT               -> putWord8 0x91
-        OP_0NOTEQUAL         -> putWord8 0x92
-        OP_ADD               -> putWord8 0x93
-        OP_SUB               -> putWord8 0x94
-        OP_MUL               -> putWord8 0x95
-        OP_DIV               -> putWord8 0x96
-        OP_MOD               -> putWord8 0x97
-        OP_LSHIFT            -> putWord8 0x98
-        OP_RSHIFT            -> putWord8 0x99
-        OP_BOOLAND           -> putWord8 0x9a
-        OP_BOOLOR            -> putWord8 0x9b
-        OP_NUMEQUAL          -> putWord8 0x9c
-        OP_NUMEQUALVERIFY    -> putWord8 0x9d
-        OP_NUMNOTEQUAL       -> putWord8 0x9e
-        OP_LESSTHAN          -> putWord8 0x9f
-        OP_GREATERTHAN       -> putWord8 0xa0
-        OP_LESSTHANOREQUAL   -> putWord8 0xa1
-        OP_GREATERTHANOREQUAL-> putWord8 0xa2
-        OP_MIN               -> putWord8 0xa3
-        OP_MAX               -> putWord8 0xa4
-        OP_WITHIN            -> putWord8 0xa5
-
-        -- Crypto
-        OP_RIPEMD160         -> putWord8 0xa6
-        OP_SHA1              -> putWord8 0xa7
-        OP_SHA256            -> putWord8 0xa8
-        OP_HASH160           -> putWord8 0xa9
-        OP_HASH256           -> putWord8 0xaa
-        OP_CODESEPARATOR     -> putWord8 0xab
-        OP_CHECKSIG          -> putWord8 0xac
-        OP_CHECKSIGVERIFY    -> putWord8 0xad
-        OP_CHECKMULTISIG     -> putWord8 0xae
-        OP_CHECKMULTISIGVERIFY -> putWord8 0xaf
-
-        -- More NOPs
-        OP_NOP1              -> putWord8 0xb0
-        OP_NOP2              -> putWord8 0xb1
-        OP_NOP3              -> putWord8 0xb2
-        OP_NOP4              -> putWord8 0xb3
-        OP_NOP5              -> putWord8 0xb4
-        OP_NOP6              -> putWord8 0xb5
-        OP_NOP7              -> putWord8 0xb6
-        OP_NOP8              -> putWord8 0xb7
-        OP_NOP9              -> putWord8 0xb8
-        OP_NOP10             -> putWord8 0xb9
-
+    put op =
+        case op of
+            (OP_PUSHDATA payload optype) -> do
+                let len = BS.length payload
+                case optype of
+                    OPCODE -> do
+                        unless (len <= 0x4b) $
+                            fail "OP_PUSHDATA OPCODE: Payload size too big"
+                        putWord8 $ fromIntegral len
+                    OPDATA1 -> do
+                        unless (len <= 0xff) $
+                            fail "OP_PUSHDATA OPDATA1: Payload size too big"
+                        putWord8 0x4c
+                        putWord8 $ fromIntegral len
+                    OPDATA2 -> do
+                        unless (len <= 0xffff) $
+                            fail "OP_PUSHDATA OPDATA2: Payload size too big"
+                        putWord8 0x4d
+                        putWord16le $ fromIntegral len
+                    OPDATA4 -> do
+                        unless (len <= 0x7fffffff) $
+                            fail "OP_PUSHDATA OPDATA4: Payload size too big"
+                        putWord8 0x4e
+                        putWord32le $ fromIntegral len
+                putByteString payload
+            -- Constants
+            OP_0 -> putWord8 0x00
+            OP_1NEGATE -> putWord8 0x4f
+            OP_RESERVED -> putWord8 0x50
+            OP_1 -> putWord8 0x51
+            OP_2 -> putWord8 0x52
+            OP_3 -> putWord8 0x53
+            OP_4 -> putWord8 0x54
+            OP_5 -> putWord8 0x55
+            OP_6 -> putWord8 0x56
+            OP_7 -> putWord8 0x57
+            OP_8 -> putWord8 0x58
+            OP_9 -> putWord8 0x59
+            OP_10 -> putWord8 0x5a
+            OP_11 -> putWord8 0x5b
+            OP_12 -> putWord8 0x5c
+            OP_13 -> putWord8 0x5d
+            OP_14 -> putWord8 0x5e
+            OP_15 -> putWord8 0x5f
+            OP_16 -> putWord8 0x60
+            -- Crypto Constants
+            OP_PUBKEY -> putWord8 0xfe
+            OP_PUBKEYHASH -> putWord8 0xfd
+            -- Invalid Opcodes
+            (OP_INVALIDOPCODE x) -> putWord8 x
+            -- Flow Control
+            OP_NOP -> putWord8 0x61
+            OP_VER -> putWord8 0x62
+            OP_IF -> putWord8 0x63
+            OP_NOTIF -> putWord8 0x64
+            OP_VERIF -> putWord8 0x65
+            OP_VERNOTIF -> putWord8 0x66
+            OP_ELSE -> putWord8 0x67
+            OP_ENDIF -> putWord8 0x68
+            OP_VERIFY -> putWord8 0x69
+            OP_RETURN -> putWord8 0x6a
+            -- Stack Operations
+            OP_TOALTSTACK -> putWord8 0x6b
+            OP_FROMALTSTACK -> putWord8 0x6c
+            OP_2DROP -> putWord8 0x6d
+            OP_2DUP -> putWord8 0x6e
+            OP_3DUP -> putWord8 0x6f
+            OP_2OVER -> putWord8 0x70
+            OP_2ROT -> putWord8 0x71
+            OP_2SWAP -> putWord8 0x72
+            OP_IFDUP -> putWord8 0x73
+            OP_DEPTH -> putWord8 0x74
+            OP_DROP -> putWord8 0x75
+            OP_DUP -> putWord8 0x76
+            OP_NIP -> putWord8 0x77
+            OP_OVER -> putWord8 0x78
+            OP_PICK -> putWord8 0x79
+            OP_ROLL -> putWord8 0x7a
+            OP_ROT -> putWord8 0x7b
+            OP_SWAP -> putWord8 0x7c
+            OP_TUCK -> putWord8 0x7d
+            -- Splice
+            OP_CAT -> putWord8 0x7e
+            OP_SUBSTR -> putWord8 0x7f
+            OP_LEFT -> putWord8 0x80
+            OP_RIGHT -> putWord8 0x81
+            OP_SIZE -> putWord8 0x82
+            -- Bitwise Logic
+            OP_INVERT -> putWord8 0x83
+            OP_AND -> putWord8 0x84
+            OP_OR -> putWord8 0x85
+            OP_XOR -> putWord8 0x86
+            OP_EQUAL -> putWord8 0x87
+            OP_EQUALVERIFY -> putWord8 0x88
+            OP_RESERVED1 -> putWord8 0x89
+            OP_RESERVED2 -> putWord8 0x8a
+            -- Arithmetic
+            OP_1ADD -> putWord8 0x8b
+            OP_1SUB -> putWord8 0x8c
+            OP_2MUL -> putWord8 0x8d
+            OP_2DIV -> putWord8 0x8e
+            OP_NEGATE -> putWord8 0x8f
+            OP_ABS -> putWord8 0x90
+            OP_NOT -> putWord8 0x91
+            OP_0NOTEQUAL -> putWord8 0x92
+            OP_ADD -> putWord8 0x93
+            OP_SUB -> putWord8 0x94
+            OP_MUL -> putWord8 0x95
+            OP_DIV -> putWord8 0x96
+            OP_MOD -> putWord8 0x97
+            OP_LSHIFT -> putWord8 0x98
+            OP_RSHIFT -> putWord8 0x99
+            OP_BOOLAND -> putWord8 0x9a
+            OP_BOOLOR -> putWord8 0x9b
+            OP_NUMEQUAL -> putWord8 0x9c
+            OP_NUMEQUALVERIFY -> putWord8 0x9d
+            OP_NUMNOTEQUAL -> putWord8 0x9e
+            OP_LESSTHAN -> putWord8 0x9f
+            OP_GREATERTHAN -> putWord8 0xa0
+            OP_LESSTHANOREQUAL -> putWord8 0xa1
+            OP_GREATERTHANOREQUAL -> putWord8 0xa2
+            OP_MIN -> putWord8 0xa3
+            OP_MAX -> putWord8 0xa4
+            OP_WITHIN -> putWord8 0xa5
+            -- Crypto
+            OP_RIPEMD160 -> putWord8 0xa6
+            OP_SHA1 -> putWord8 0xa7
+            OP_SHA256 -> putWord8 0xa8
+            OP_HASH160 -> putWord8 0xa9
+            OP_HASH256 -> putWord8 0xaa
+            OP_CODESEPARATOR -> putWord8 0xab
+            OP_CHECKSIG -> putWord8 0xac
+            OP_CHECKSIGVERIFY -> putWord8 0xad
+            OP_CHECKMULTISIG -> putWord8 0xae
+            OP_CHECKMULTISIGVERIFY -> putWord8 0xaf
+            -- More NOPs
+            OP_NOP1 -> putWord8 0xb0
+            OP_NOP2 -> putWord8 0xb1
+            OP_NOP3 -> putWord8 0xb2
+            OP_NOP4 -> putWord8 0xb3
+            OP_NOP5 -> putWord8 0xb4
+            OP_NOP6 -> putWord8 0xb5
+            OP_NOP7 -> putWord8 0xb6
+            OP_NOP8 -> putWord8 0xb7
+            OP_NOP9 -> putWord8 0xb8
+            OP_NOP10 -> putWord8 0xb9
 
 -- | Check whether opcode is only data.
 isPushOp :: ScriptOp -> Bool
-isPushOp op = case op of
-    OP_PUSHDATA _ _ -> True
-    OP_0            -> True
-    OP_1NEGATE      -> True
-    OP_1            -> True
-    OP_2            -> True
-    OP_3            -> True
-    OP_4            -> True
-    OP_5            -> True
-    OP_6            -> True
-    OP_7            -> True
-    OP_8            -> True
-    OP_9            -> True
-    OP_10           -> True
-    OP_11           -> True
-    OP_12           -> True
-    OP_13           -> True
-    OP_14           -> True
-    OP_15           -> True
-    OP_16           -> True
-    _               -> False
+isPushOp op =
+    case op of
+        OP_PUSHDATA _ _ -> True
+        OP_0            -> True
+        OP_1NEGATE      -> True
+        OP_1            -> True
+        OP_2            -> True
+        OP_3            -> True
+        OP_4            -> True
+        OP_5            -> True
+        OP_6            -> True
+        OP_7            -> True
+        OP_8            -> True
+        OP_9            -> True
+        OP_10           -> True
+        OP_11           -> True
+        OP_12           -> True
+        OP_13           -> True
+        OP_14           -> True
+        OP_15           -> True
+        OP_16           -> True
+        _               -> False
 
 -- | Optimally encode data using one of the 4 types of data pushing opcodes
 opPushData :: BS.ByteString -> ScriptOp
 opPushData bs
-    | len <= 0x4b       = OP_PUSHDATA bs OPCODE
-    | len <= 0xff       = OP_PUSHDATA bs OPDATA1
-    | len <= 0xffff     = OP_PUSHDATA bs OPDATA2
+    | len <= 0x4b = OP_PUSHDATA bs OPCODE
+    | len <= 0xff = OP_PUSHDATA bs OPDATA1
+    | len <= 0xffff = OP_PUSHDATA bs OPDATA2
     | len <= 0xffffffff = OP_PUSHDATA bs OPDATA4
-    | otherwise         = error "opPushData: payload size too big"
+    | otherwise = error "opPushData: payload size too big"
   where
     len = BS.length bs
-

@@ -1,41 +1,38 @@
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE KindSignatures        #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TemplateHaskell       #-}
+
 module Network.Haskoin.Node.STM where
 
 import           Control.Concurrent              (ThreadId)
 import           Control.Concurrent.STM          (STM, TMVar, TVar, atomically,
                                                   isEmptyTMVar, modifyTVar',
-                                                  newEmptyTMVarIO, newTVar,
-                                                  newTVarIO, orElse, putTMVar,
-                                                  readTMVar, readTVar,
-                                                  takeTMVar, tryPutTMVar,
-                                                  tryReadTMVar, writeTVar)
+                                                  newEmptyTMVarIO, newTVar, newTVarIO,
+                                                  orElse, putTMVar, readTMVar, readTVar,
+                                                  takeTMVar, tryPutTMVar, tryReadTMVar,
+                                                  writeTVar)
 import           Control.Concurrent.STM.Lock     (Lock)
 import qualified Control.Concurrent.STM.Lock     as Lock (new)
-import           Control.Concurrent.STM.TBMChan  (TBMChan, closeTBMChan,
-                                                  newTBMChan)
+import           Control.Concurrent.STM.TBMChan  (TBMChan, closeTBMChan, newTBMChan)
 import           Control.DeepSeq                 (NFData (..))
-import           Control.Exception.Lifted        (Exception, SomeException,
-                                                  catch, fromException, throw)
+import           Control.Exception.Lifted        (Exception, SomeException, catch,
+                                                  fromException, throw)
 import           Control.Monad                   ((<=<))
 import           Control.Monad.Logger            (MonadLoggerIO, logDebug)
-import           Control.Monad.Reader            (ReaderT, ask, asks,
-                                                  runReaderT)
+import           Control.Monad.Reader            (ReaderT, ask, asks, runReaderT)
 import           Control.Monad.Trans             (MonadIO, lift, liftIO)
 import           Control.Monad.Trans.Control     (MonadBaseControl)
 import           Data.Aeson.TH                   (deriveJSON)
-import qualified Data.Map.Strict                 as M (Map, delete,
-                                                       insert, lookup)
+import qualified Data.Map.Strict                 as M (Map, delete, insert, lookup)
 import           Data.Maybe                      (isJust)
 import           Data.Time.Clock                 (NominalDiffTime)
 import           Data.Typeable                   (Typeable)
 import           Data.Unique                     (Unique, hashUnique)
 import           Data.Word                       (Word32, Word64)
-import           Database.Persist.Sql            (ConnectionPool, SqlBackend,
-                                                  SqlPersistT, runSqlConn,
-                                                  runSqlPool)
+import           Database.Persist.Sql            (ConnectionPool, SqlBackend, SqlPersistT,
+                                                  runSqlConn, runSqlPool)
 import           Network.Haskoin.Block
 import           Network.Haskoin.Node
 import           Network.Haskoin.Node.HeaderTree
@@ -43,68 +40,78 @@ import           Network.Haskoin.Transaction
 import           Network.Haskoin.Util
 
 {- Type aliases -}
-
 type MerkleTxs = [TxHash]
+
 type NodeT = ReaderT SharedNodeState
+
 type PeerId = Unique
+
 type PeerHostScore = Word32
 
-newtype ShowPeerId = ShowPeerId { getShowPeerId :: PeerId }
-  deriving (Eq)
+newtype ShowPeerId = ShowPeerId
+    { getShowPeerId :: PeerId
+    } deriving (Eq)
 
 instance Show ShowPeerId where
     show = show . hashUnique . getShowPeerId
 
-runSql :: (MonadBaseControl IO m)
-       => SqlPersistT m a
-       -> Either SqlBackend ConnectionPool
-       -> m a
-runSql f (Left  conn) = runSqlConn f conn
+runSql
+    :: (MonadBaseControl IO m)
+    => SqlPersistT m a -> Either SqlBackend ConnectionPool -> m a
+runSql f (Left conn)  = runSqlConn f conn
 runSql f (Right pool) = runSqlPool f pool
 
-runSqlNodeT :: (MonadBaseControl IO m) => SqlPersistT m a -> NodeT m a
+runSqlNodeT
+    :: (MonadBaseControl IO m)
+    => SqlPersistT m a -> NodeT m a
 runSqlNodeT f = asks sharedSqlBackend >>= lift . runSql f
 
-getNodeState :: (MonadLoggerIO m, MonadBaseControl IO m)
-             => Either SqlBackend ConnectionPool
-             -> m SharedNodeState
-getNodeState sharedSqlBackend = do
-    -- Initialize the HeaderTree
+getNodeState
+    :: (MonadLoggerIO m, MonadBaseControl IO m)
+    => Either SqlBackend ConnectionPool -> m SharedNodeState
+getNodeState sharedSqlBackend
+             -- Initialize the HeaderTree
+ = do
     $(logDebug) "Initializing the HeaderTree and NodeState"
     best <- runSql (initHeaderTree >> getBestBlock) sharedSqlBackend
-    liftIO $ do
-        sharedPeerMap         <- newTVarIO mempty
-        sharedHostMap         <- newTVarIO mempty
-        sharedNetworkHeight   <- newTVarIO 0
-        sharedHeaders         <- newEmptyTMVarIO
-        sharedHeaderPeer      <- newTVarIO Nothing
-        sharedMerklePeer      <- newTVarIO Nothing
-        sharedSyncLock        <- atomically Lock.new
-        sharedTickleChan      <- atomically $ newTBMChan 1024
-        sharedTxChan          <- atomically $ newTBMChan 1024
-        sharedTxGetData       <- newTVarIO mempty
-        sharedRescan          <- newEmptyTMVarIO
-        sharedMempool         <- newTVarIO mempty
-        sharedBloomFilter     <- newTVarIO Nothing
-        -- Find our best node in the HeaderTree
-        sharedBestHeader      <- newTVarIO best
-        sharedBestBlock       <- newTVarIO genesisBlock
-        return SharedNodeState{..}
+    liftIO $
+        do sharedPeerMap <- newTVarIO mempty
+           sharedHostMap <- newTVarIO mempty
+           sharedNetworkHeight <- newTVarIO 0
+           sharedHeaders <- newEmptyTMVarIO
+           sharedHeaderPeer <- newTVarIO Nothing
+           sharedMerklePeer <- newTVarIO Nothing
+           sharedSyncLock <- atomically Lock.new
+           sharedTickleChan <- atomically $ newTBMChan 1024
+           sharedTxChan <- atomically $ newTBMChan 1024
+           sharedTxGetData <- newTVarIO mempty
+           sharedRescan <- newEmptyTMVarIO
+           sharedMempool <- newTVarIO mempty
+           sharedBloomFilter <- newTVarIO Nothing
+           -- Find our best node in the HeaderTree
+           sharedBestHeader <- newTVarIO best
+           sharedBestBlock <- newTVarIO genesisBlock
+           return
+               SharedNodeState
+               { ..
+               }
 
-runNodeT :: Monad m => NodeT m a -> SharedNodeState -> m a
+runNodeT
+    :: Monad m
+    => NodeT m a -> SharedNodeState -> m a
 runNodeT = runReaderT
 
-withNodeT :: (MonadLoggerIO m, MonadBaseControl IO m)
-          => NodeT m a
-          -> Either SqlBackend ConnectionPool
-          -> m a
+withNodeT
+    :: (MonadLoggerIO m, MonadBaseControl IO m)
+    => NodeT m a -> Either SqlBackend ConnectionPool -> m a
 withNodeT action sql = runNodeT action =<< getNodeState sql
 
-atomicallyNodeT :: MonadIO m => NodeT STM a -> NodeT m a
+atomicallyNodeT
+    :: MonadIO m
+    => NodeT STM a -> NodeT m a
 atomicallyNodeT action = liftIO . atomically . runReaderT action =<< ask
 
 {- PeerHost Session -}
-
 data PeerHostSession = PeerHostSession
     { peerHostSessionScore     :: !PeerHostScore
     , peerHostSessionReconnect :: !Int
@@ -113,13 +120,10 @@ data PeerHostSession = PeerHostSession
     }
 
 instance NFData PeerHostSession where
-    rnf PeerHostSession{..} =
-        rnf peerHostSessionScore `seq`
-        rnf peerHostSessionReconnect `seq`
-        rnf peerHostSessionLog
+    rnf PeerHostSession {..} =
+        rnf peerHostSessionScore `seq` rnf peerHostSessionReconnect `seq` rnf peerHostSessionLog
 
 {- Shared Peer STM Type -}
-
 data SharedNodeState = SharedNodeState
     { sharedPeerMap       :: !(TVar (M.Map PeerId (TVar PeerSession)))
       -- ^ Map of all active peers and their sessions
@@ -155,7 +159,6 @@ data SharedNodeState = SharedNodeState
     }
 
 {- Peer Data -}
-
 type PingNonce = Word64
 
 -- Data stored about a peer
@@ -181,36 +184,30 @@ data PeerSession = PeerSession
     }
 
 instance NFData PeerSession where
-    rnf PeerSession{..} =
+    rnf PeerSession {..} =
         rnf peerSessionConnected `seq`
         rnf peerSessionVersion `seq`
         rnf peerSessionHeight `seq`
         peerSessionChan `seq`
-        rnf peerSessionHost `seq`
-        peerSessionThreadId `seq` ()
+        rnf peerSessionHost `seq` peerSessionThreadId `seq` ()
 
 {- Peer Hosts -}
-
 data PeerHost = PeerHost
     { peerHost :: !String
     , peerPort :: !Int
-    }
-    deriving (Eq, Ord)
+    } deriving (Eq, Ord)
 
 $(deriveJSON (dropFieldLabel 4) ''PeerHost)
 
 peerHostString :: PeerHost -> String
-peerHostString PeerHost{..} = concat [ peerHost, ":", show peerPort ]
+peerHostString PeerHost {..} = concat [peerHost, ":", show peerPort]
 
 instance NFData PeerHost where
-    rnf PeerHost{..} =
-        rnf peerHost `seq`
-        rnf peerPort
+    rnf PeerHost {..} = rnf peerHost `seq` rnf peerPort
 
 {- Node Status -}
-
 data PeerStatus = PeerStatus
-    -- Regular fields
+                  -- Regular fields
     { peerStatusPeerId         :: !Int
     , peerStatusHost           :: !PeerHost
     , peerStatusConnected      :: !Bool
@@ -219,7 +216,7 @@ data PeerStatus = PeerStatus
     , peerStatusUserAgent      :: !(Maybe String)
     , peerStatusPing           :: !(Maybe String)
     , peerStatusDoSScore       :: !(Maybe PeerHostScore)
-    -- Debug fields
+      -- Debug fields
     , peerStatusHaveMerkles    :: !Bool
     , peerStatusHaveMessage    :: !Bool
     , peerStatusPingNonces     :: ![PingNonce]
@@ -230,7 +227,7 @@ data PeerStatus = PeerStatus
 $(deriveJSON (dropFieldLabel 10) ''PeerStatus)
 
 data NodeStatus = NodeStatus
-    -- Regular fields
+                  -- Regular fields
     { nodeStatusPeers            :: ![PeerStatus]
     , nodeStatusNetworkHeight    :: !BlockHeight
     , nodeStatusBestHeader       :: !BlockHash
@@ -238,7 +235,7 @@ data NodeStatus = NodeStatus
     , nodeStatusBestBlock        :: !BlockHash
     , nodeStatusBestBlockHeight  :: !BlockHeight
     , nodeStatusBloomSize        :: !Int
-    -- Debug fields
+      -- Debug fields
     , nodeStatusHeaderPeer       :: !(Maybe Int)
     , nodeStatusMerklePeer       :: !(Maybe Int)
     , nodeStatusHaveHeaders      :: !Bool
@@ -253,20 +250,19 @@ data NodeStatus = NodeStatus
 $(deriveJSON (dropFieldLabel 10) ''NodeStatus)
 
 {- Getters / Setters -}
-
 tryGetPeerSession :: PeerId -> NodeT STM (Maybe PeerSession)
 tryGetPeerSession pid = do
     peerMap <- readTVarS sharedPeerMap
     case M.lookup pid peerMap of
         Just sessTVar -> fmap Just $ lift $ readTVar sessTVar
-        _ -> return Nothing
+        _             -> return Nothing
 
 getPeerSession :: PeerId -> NodeT STM PeerSession
 getPeerSession pid = do
     sessM <- tryGetPeerSession pid
     case sessM of
         Just sess -> return sess
-        _ -> throw $ NodeExceptionInvalidPeer $ ShowPeerId pid
+        _         -> throw $ NodeExceptionInvalidPeer $ ShowPeerId pid
 
 newPeerSession :: PeerId -> PeerSession -> NodeT STM ()
 newPeerSession pid sess = do
@@ -284,31 +280,33 @@ modifyPeerSession pid f = do
     peerMap <- readTVarS sharedPeerMap
     case M.lookup pid peerMap of
         Just sessTVar -> lift $ modifyTVar' sessTVar f
-        _ -> return ()
+        _             -> return ()
 
 removePeerSession :: PeerId -> NodeT STM (Maybe PeerSession)
 removePeerSession pid = do
     peerMapTVar <- asks sharedPeerMap
     peerMap <- lift $ readTVar peerMapTVar
     -- Close the peer TBMChan
-    sessM <- case M.lookup pid peerMap of
-        Just sessTVar -> lift $ do
-            sess@PeerSession{..} <- readTVar sessTVar
-            closeTBMChan peerSessionChan
-            return $ Just sess
-        _ -> return Nothing
+    sessM <-
+        case M.lookup pid peerMap of
+            Just sessTVar ->
+                lift $
+                do sess@PeerSession {..} <- readTVar sessTVar
+                   closeTBMChan peerSessionChan
+                   return $ Just sess
+            _ -> return Nothing
     -- Remove the peer from the peerMap
     let newMap = M.delete pid peerMap
     lift $ writeTVar peerMapTVar $! newMap
     return sessM
 
-getHostSession :: PeerHost
-               -> NodeT STM (Maybe PeerHostSession)
+getHostSession :: PeerHost -> NodeT STM (Maybe PeerHostSession)
 getHostSession ph = do
     hostMap <- readTVarS sharedHostMap
-    lift $ case M.lookup ph hostMap of
-        Just hostSessionTVar -> Just <$> readTVar hostSessionTVar
-        _ -> return Nothing
+    lift $
+        case M.lookup ph hostMap of
+            Just hostSessionTVar -> Just <$> readTVar hostSessionTVar
+            _                    -> return Nothing
 
 modifyHostSession :: PeerHost
                   -> (PeerHostSession -> PeerHostSession)
@@ -317,11 +315,14 @@ modifyHostSession ph f = do
     hostMap <- readTVarS sharedHostMap
     case M.lookup ph hostMap of
         Just hostSessionTVar -> lift $ modifyTVar' hostSessionTVar f
-        _ -> newHostSession ph $!
-            f PeerHostSession { peerHostSessionScore     = 0
-                              , peerHostSessionReconnect = 1
-                              , peerHostSessionLog       = []
-                              }
+        _ ->
+            newHostSession ph $!
+            f
+                PeerHostSession
+                { peerHostSessionScore = 0
+                , peerHostSessionReconnect = 1
+                , peerHostSessionLog = []
+                }
 
 newHostSession :: PeerHost -> PeerHostSession -> NodeT STM ()
 newHostSession ph session = do
@@ -329,13 +330,13 @@ newHostSession ph session = do
     hostMap <- lift $ readTVar hostMapTVar
     case M.lookup ph hostMap of
         Just _ -> return ()
-        Nothing -> lift $ do
-            hostSessionTVar <- newTVar session
-            let newHostMap = M.insert ph hostSessionTVar hostMap
-            writeTVar hostMapTVar $! newHostMap
+        Nothing ->
+            lift $
+            do hostSessionTVar <- newTVar session
+               let newHostMap = M.insert ph hostSessionTVar hostMap
+               writeTVar hostMapTVar $! newHostMap
 
 {- Host DOS Scores -}
-
 bannedScore :: PeerHostScore
 bannedScore = 100
 
@@ -352,14 +353,12 @@ isHostScoreBanned :: PeerHostScore -> Bool
 isHostScoreBanned = (>= bannedScore)
 
 {- STM Utilities -}
-
 orElseNodeT :: NodeT STM a -> NodeT STM a -> NodeT STM a
 orElseNodeT a b = do
     s <- ask
     lift $ runNodeT a s `orElse` runNodeT b s
 
 {- TVar Utilities -}
-
 readTVarS :: (SharedNodeState -> TVar a) -> NodeT STM a
 readTVarS = lift . readTVar <=< asks
 
@@ -367,7 +366,6 @@ writeTVarS :: (SharedNodeState -> TVar a) -> a -> NodeT STM ()
 writeTVarS f val = lift . flip writeTVar val =<< asks f
 
 {- TMVar Utilities -}
-
 takeTMVarS :: (SharedNodeState -> TMVar a) -> NodeT STM a
 takeTMVarS = lift . takeTMVar <=< asks
 
@@ -402,10 +400,12 @@ instance Exception NodeException
 isNodeException :: SomeException -> Bool
 isNodeException se = isJust (fromException se :: Maybe NodeException)
 
-catchAny :: MonadBaseControl IO m
-         => m a -> (SomeException -> m a) -> m a
+catchAny
+    :: MonadBaseControl IO m
+    => m a -> (SomeException -> m a) -> m a
 catchAny = catch
 
-catchAny_ :: MonadBaseControl IO m
-          => m () -> m ()
+catchAny_
+    :: MonadBaseControl IO m
+    => m () -> m ()
 catchAny_ = flip catchAny $ \_ -> return ()

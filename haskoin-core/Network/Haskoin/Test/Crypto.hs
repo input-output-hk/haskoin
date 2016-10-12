@@ -2,33 +2,32 @@
   Arbitrary types for Network.Haskoin.Crypto
 -}
 module Network.Haskoin.Test.Crypto
-( ArbitraryHash512(..)
-, ArbitraryHash256(..)
-, ArbitraryHash160(..)
-, ArbitraryCheckSum32(..)
-, ArbitraryByteString(..)
-, ArbitraryNotNullByteString(..)
-, ArbitraryPrvKey(..)
-, ArbitraryPrvKeyC(..)
-, ArbitraryPrvKeyU(..)
-, ArbitraryPubKey(..)
-, ArbitraryPubKeyC(..)
-, ArbitraryPubKeyU(..)
-, ArbitraryAddress(..)
-, ArbitraryPubKeyAddress(..)
-, ArbitraryScriptAddress(..)
-, ArbitrarySignature(..)
-, ArbitraryXPrvKey(..)
-, ArbitraryXPubKey(..)
-, ArbitraryHardPath(..)
-, ArbitrarySoftPath(..)
-, ArbitraryDerivPath(..)
-, ArbitraryParsedPath(..)
+  ( ArbitraryHash512(..)
+  , ArbitraryHash256(..)
+  , ArbitraryHash160(..)
+  , ArbitraryCheckSum32(..)
+  , ArbitraryByteString(..)
+  , ArbitraryNotNullByteString(..)
+  , ArbitraryPrvKey(..)
+  , ArbitraryPrvKeyC(..)
+  , ArbitraryPrvKeyU(..)
+  , ArbitraryPubKey(..)
+  , ArbitraryPubKeyC(..)
+  , ArbitraryPubKeyU(..)
+  , ArbitraryAddress(..)
+  , ArbitraryPubKeyAddress(..)
+  , ArbitraryScriptAddress(..)
+  , ArbitrarySignature(..)
+  , ArbitraryXPrvKey(..)
+  , ArbitraryXPubKey(..)
+  , ArbitraryHardPath(..)
+  , ArbitrarySoftPath(..)
+  , ArbitraryDerivPath(..)
+  , ArbitraryParsedPath(..)
+  ) where
 
-) where
-
-import           Test.QuickCheck                     (Arbitrary, Gen, arbitrary,
-                                                      listOf, oneof, vectorOf)
+import           Test.QuickCheck                     (Arbitrary, Gen, arbitrary, listOf,
+                                                      oneof, vectorOf)
 
 import           Crypto.Secp256k1                    ()
 
@@ -45,54 +44,66 @@ import           Network.Haskoin.Crypto.Hash
 import           Network.Haskoin.Crypto.Keys
 import           Network.Haskoin.Test.Util
 
-newtype ArbitraryHash160 = ArbitraryHash160 Hash160
+newtype ArbitraryHash160 =
+    ArbitraryHash160 Hash160
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryHash160 where
-    arbitrary = (ArbitraryHash160 . fromMaybe e . bsToHash160 . BS.pack) <$>
+    arbitrary =
+        (ArbitraryHash160 . fromMaybe e . bsToHash160 . BS.pack) <$>
         vectorOf 20 arbitrary
       where
         e = error "Could not read arbitrary 20-byte hash"
 
-newtype ArbitraryHash256 = ArbitraryHash256 Hash256
+newtype ArbitraryHash256 =
+    ArbitraryHash256 Hash256
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryHash256 where
-    arbitrary = (ArbitraryHash256 . fromMaybe e . bsToHash256 . BS.pack) <$>
+    arbitrary =
+        (ArbitraryHash256 . fromMaybe e . bsToHash256 . BS.pack) <$>
         vectorOf 32 arbitrary
       where
         e = error "Could not read arbitrary 32-byte hash"
 
-newtype ArbitraryHash512 = ArbitraryHash512 Hash512
+newtype ArbitraryHash512 =
+    ArbitraryHash512 Hash512
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryHash512 where
-    arbitrary = (ArbitraryHash512 . fromMaybe e . bsToHash512 . BS.pack) <$>
+    arbitrary =
+        (ArbitraryHash512 . fromMaybe e . bsToHash512 . BS.pack) <$>
         vectorOf 64 arbitrary
       where
         e = error "Could not read arbitrary 64-byte hash"
 
-newtype ArbitraryCheckSum32 = ArbitraryCheckSum32 CheckSum32
+newtype ArbitraryCheckSum32 =
+    ArbitraryCheckSum32 CheckSum32
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryCheckSum32 where
-    arbitrary = (ArbitraryCheckSum32 . fromMaybe e . bsToCheckSum32 . BS.pack) <$>
+    arbitrary =
+        (ArbitraryCheckSum32 . fromMaybe e . bsToCheckSum32 . BS.pack) <$>
         vectorOf 4 arbitrary
       where
         e = error "Could not read arbitrary checksum"
 
 -- | Arbitrary private key (can be both compressed or uncompressed)
-newtype ArbitraryPrvKey = ArbitraryPrvKey PrvKey
+newtype ArbitraryPrvKey =
+    ArbitraryPrvKey PrvKey
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryPrvKey where
-    arbitrary = ArbitraryPrvKey <$> oneof
-        [ arbitrary >>= \(ArbitraryPrvKeyC k) -> return (toPrvKeyG k)
-        , arbitrary >>= \(ArbitraryPrvKeyU k) -> return (toPrvKeyG k)
-        ]
+    arbitrary =
+        ArbitraryPrvKey <$>
+        oneof
+            [ arbitrary >>= \(ArbitraryPrvKeyC k) -> return (toPrvKeyG k)
+            , arbitrary >>= \(ArbitraryPrvKeyU k) -> return (toPrvKeyG k)
+            ]
 
 -- | Arbitrary compressed private key
-newtype ArbitraryPrvKeyC = ArbitraryPrvKeyC PrvKeyC
+newtype ArbitraryPrvKeyC =
+    ArbitraryPrvKeyC PrvKeyC
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryPrvKeyC where
@@ -101,7 +112,8 @@ instance Arbitrary ArbitraryPrvKeyC where
         return $ ArbitraryPrvKeyC $ makePrvKeyC i
 
 -- | Arbitrary uncompressed private key
-newtype ArbitraryPrvKeyU = ArbitraryPrvKeyU PrvKeyU
+newtype ArbitraryPrvKeyU =
+    ArbitraryPrvKeyU PrvKeyU
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryPrvKeyU where
@@ -111,19 +123,26 @@ instance Arbitrary ArbitraryPrvKeyU where
 
 -- | Arbitrary public key (can be both compressed or uncompressed) with its
 -- corresponding private key.
-data ArbitraryPubKey = ArbitraryPubKey PrvKey PubKey
+data ArbitraryPubKey =
+    ArbitraryPubKey PrvKey
+                    PubKey
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryPubKey where
-    arbitrary = oneof
-        [ arbitrary >>= \(ArbitraryPubKeyC k p) ->
-            return $ ArbitraryPubKey (toPrvKeyG k) (toPubKeyG p)
-        , arbitrary >>= \(ArbitraryPubKeyU k p) ->
-            return $ ArbitraryPubKey (toPrvKeyG k) (toPubKeyG p)
-        ]
+    arbitrary =
+        oneof
+            [ arbitrary >>=
+              \(ArbitraryPubKeyC k p) ->
+                   return $ ArbitraryPubKey (toPrvKeyG k) (toPubKeyG p)
+            , arbitrary >>=
+              \(ArbitraryPubKeyU k p) ->
+                   return $ ArbitraryPubKey (toPrvKeyG k) (toPubKeyG p)
+            ]
 
 -- | Arbitrary compressed public key with its corresponding private key.
-data ArbitraryPubKeyC = ArbitraryPubKeyC PrvKeyC PubKeyC
+data ArbitraryPubKeyC =
+    ArbitraryPubKeyC PrvKeyC
+                     PubKeyC
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryPubKeyC where
@@ -132,7 +151,9 @@ instance Arbitrary ArbitraryPubKeyC where
         return $ ArbitraryPubKeyC k $ derivePubKey k
 
 -- | Arbitrary uncompressed public key with its corresponding private key.
-data ArbitraryPubKeyU = ArbitraryPubKeyU PrvKeyU PubKeyU
+data ArbitraryPubKeyU =
+    ArbitraryPubKeyU PrvKeyU
+                     PubKeyU
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryPubKeyU where
@@ -141,17 +162,21 @@ instance Arbitrary ArbitraryPubKeyU where
         return $ ArbitraryPubKeyU k $ derivePubKey k
 
 -- | Arbitrary address (can be a pubkey or script hash address)
-newtype ArbitraryAddress = ArbitraryAddress Address
+newtype ArbitraryAddress =
+    ArbitraryAddress Address
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryAddress where
-    arbitrary = ArbitraryAddress <$> oneof
-        [ arbitrary >>= \(ArbitraryPubKeyAddress a) -> return a
-        , arbitrary >>= \(ArbitraryScriptAddress a) -> return a
-        ]
+    arbitrary =
+        ArbitraryAddress <$>
+        oneof
+            [ arbitrary >>= \(ArbitraryPubKeyAddress a) -> return a
+            , arbitrary >>= \(ArbitraryScriptAddress a) -> return a
+            ]
 
 -- | Arbitrary public key hash address
-newtype ArbitraryPubKeyAddress = ArbitraryPubKeyAddress Address
+newtype ArbitraryPubKeyAddress =
+    ArbitraryPubKeyAddress Address
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryPubKeyAddress where
@@ -160,7 +185,8 @@ instance Arbitrary ArbitraryPubKeyAddress where
         return $ ArbitraryPubKeyAddress $ PubKeyAddress i
 
 -- | Arbitrary script hash address
-newtype ArbitraryScriptAddress = ArbitraryScriptAddress Address
+newtype ArbitraryScriptAddress =
+    ArbitraryScriptAddress Address
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryScriptAddress where
@@ -171,7 +197,10 @@ instance Arbitrary ArbitraryScriptAddress where
 -- | Arbitrary message hash, private key, nonce and corresponding signature.
 -- The signature is generated with a random message, random private key and a
 -- random nonce.
-data ArbitrarySignature = ArbitrarySignature Hash256 PrvKey Signature
+data ArbitrarySignature =
+    ArbitrarySignature Hash256
+                       PrvKey
+                       Signature
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitrarySignature where
@@ -182,7 +211,8 @@ instance Arbitrary ArbitrarySignature where
         return $ ArbitrarySignature msg key sig
 
 -- | Arbitrary extended private key.
-data ArbitraryXPrvKey = ArbitraryXPrvKey XPrvKey
+data ArbitraryXPrvKey =
+    ArbitraryXPrvKey XPrvKey
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryXPrvKey where
@@ -195,7 +225,9 @@ instance Arbitrary ArbitraryXPrvKey where
         return $ ArbitraryXPrvKey $ XPrvKey d p i c k
 
 -- | Arbitrary extended public key with its corresponding private key.
-data ArbitraryXPubKey = ArbitraryXPubKey XPrvKey XPubKey
+data ArbitraryXPubKey =
+    ArbitraryXPubKey XPrvKey
+                     XPubKey
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryXPubKey where
@@ -204,49 +236,49 @@ instance Arbitrary ArbitraryXPubKey where
         return $ ArbitraryXPubKey k $ deriveXPubKey k
 
 {- Custom derivations -}
-
 genIndex :: Gen Word32
 genIndex = (`clearBit` 31) <$> arbitrary
 
-data ArbitraryBip32PathIndex = ArbitraryBip32PathIndex Bip32PathIndex
-    deriving (Show,Eq)
+data ArbitraryBip32PathIndex =
+    ArbitraryBip32PathIndex Bip32PathIndex
+    deriving (Show, Eq)
 
 instance Arbitrary ArbitraryBip32PathIndex where
-    arbitrary =
-        ArbitraryBip32PathIndex <$> oneof [soft, hard]
-        where soft = Bip32SoftIndex <$> genIndex
-              hard = Bip32HardIndex <$> genIndex
+    arbitrary = ArbitraryBip32PathIndex <$> oneof [soft, hard]
+      where
+        soft = Bip32SoftIndex <$> genIndex
+        hard = Bip32HardIndex <$> genIndex
 
-data ArbitraryHardPath = ArbitraryHardPath HardPath
+data ArbitraryHardPath =
+    ArbitraryHardPath HardPath
     deriving (Show, Eq)
 
 instance Arbitrary ArbitraryHardPath where
-    arbitrary =
-        ArbitraryHardPath . foldl' (:|) Deriv <$> listOf genIndex
+    arbitrary = ArbitraryHardPath . foldl' (:|) Deriv <$> listOf genIndex
 
-
-data ArbitrarySoftPath = ArbitrarySoftPath SoftPath
+data ArbitrarySoftPath =
+    ArbitrarySoftPath SoftPath
     deriving (Show, Eq)
 
 instance Arbitrary ArbitrarySoftPath where
-    arbitrary =
-        ArbitrarySoftPath . foldl' (:/) Deriv <$> listOf genIndex
+    arbitrary = ArbitrarySoftPath . foldl' (:/) Deriv <$> listOf genIndex
 
-data ArbitraryDerivPath = ArbitraryDerivPath DerivPath
+data ArbitraryDerivPath =
+    ArbitraryDerivPath DerivPath
     deriving (Show, Eq)
 
 instance Arbitrary ArbitraryDerivPath where
-    arbitrary = ArbitraryDerivPath . concatBip32Segments . map (\(ArbitraryBip32PathIndex i) -> i ) <$> arbitrary
+    arbitrary =
+        ArbitraryDerivPath .
+        concatBip32Segments . map (\(ArbitraryBip32PathIndex i) -> i) <$>
+        arbitrary
 
-
-data ArbitraryParsedPath = ArbitraryParsedPath ParsedPath
-  deriving (Show, Eq)
+data ArbitraryParsedPath =
+    ArbitraryParsedPath ParsedPath
+    deriving (Show, Eq)
 
 instance Arbitrary ArbitraryParsedPath where
     arbitrary = do
         ArbitraryDerivPath d <- arbitrary
-        ArbitraryParsedPath <$> oneof [ pure $ ParsedPrv d
-                                      , pure $ ParsedPub d
-                                      , pure $ ParsedEmpty d ]
-
-
+        ArbitraryParsedPath <$>
+            oneof [pure $ ParsedPrv d, pure $ ParsedPub d, pure $ ParsedEmpty d]

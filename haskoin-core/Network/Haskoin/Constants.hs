@@ -1,41 +1,41 @@
 {-# OPTIONS_GHC -fno-cse -fno-full-laziness #-}
+
 {-|
   Network specific constants
 -}
 module Network.Haskoin.Constants
-( -- ** Data
-  Network(..)
-, prodnet
-, testnet3
-  -- ** Functions
-, switchToTestnet3
-, setNetwork
-, getNetwork
-  -- ** Network parameters
-, networkName
-, addrPrefix
-, scriptPrefix
-, secretPrefix
-, extPubKeyPrefix
-, extSecretPrefix
-, networkMagic
-, genesisHeader
-, maxBlockSize
-, maxSatoshi
-, haskoinUserAgent
-, defaultPort
-, allowMinDifficultyBlocks
-, powLimit
-, targetTimespan
-, targetSpacing
-, checkpoints
-) where
+  ( Network(..)
+  , prodnet
+  , testnet3
+   -- ** Functions
+  , switchToTestnet3
+  , setNetwork
+  , getNetwork
+   -- ** Network parameters
+  , networkName
+  , addrPrefix
+  , scriptPrefix
+  , secretPrefix
+  , extPubKeyPrefix
+  , extSecretPrefix
+  , networkMagic
+  , genesisHeader
+  , maxBlockSize
+  , maxSatoshi
+  , haskoinUserAgent
+  , defaultPort
+  , allowMinDifficultyBlocks
+  , powLimit
+  , targetTimespan
+  , targetSpacing
+  , checkpoints
+  ) where
 
+-- ** Data
 import           Data.Bits                   (shiftR)
 import           Data.ByteString             (ByteString)
 import qualified Data.ByteString.Char8       as C8 (concat, pack)
-import           Data.IORef                  (IORef, newIORef, readIORef,
-                                              writeIORef)
+import           Data.IORef                  (IORef, newIORef, readIORef, writeIORef)
 import           Data.LargeWord              (Word256)
 import           Data.Version                (showVersion)
 import           Data.Word                   (Word32, Word64, Word8)
@@ -73,11 +73,13 @@ setNetwork :: Network -> IO ()
 setNetwork = writeIORef networkRef
 
 {-# NOINLINE networkRef #-}
+
 -- | Use this if you want to change constants to something other than Testnet3.
 networkRef :: IORef Network
 networkRef = unsafePerformIO $ newIORef prodnet
 
 {-# NOINLINE getNetwork #-}
+
 -- | Read current network constants record
 getNetwork :: Network
 getNetwork = unsafePerformIO $ readIORef networkRef
@@ -151,7 +153,8 @@ checkpoints :: [(Int, BlockHash)]
 checkpoints = getCheckpoints getNetwork
 
 prodnet :: Network
-prodnet = Network
+prodnet =
+    Network
     { getNetworkName = "prodnet"
     , getAddrPrefix = 0
     , getScriptPrefix = 5
@@ -159,21 +162,19 @@ prodnet = Network
     , getExtPubKeyPrefix = 0x0488b21e
     , getExtSecretPrefix = 0x0488ade4
     , getNetworkMagic = 0xf9beb4d9
-    , getGenesisHeader = createBlockHeader
-        0x01
-        "0000000000000000000000000000000000000000000000000000000000000000"
-        "3ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a"
-        1231006505
-        486604799
-        2083236893
-        -- Hash 000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f
+    , getGenesisHeader =
+        createBlockHeader
+            0x01
+            "0000000000000000000000000000000000000000000000000000000000000000"
+            "3ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a"
+            1231006505
+            486604799
+            2083236893
+    -- Hash 000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f
     , getMaxBlockSize = 1000000
     , getMaxSatoshi = 2100000000000000
-    , getHaskoinUserAgent = C8.concat
-        [ "/haskoin:"
-        , C8.pack $ showVersion version
-        , "/"
-        ]
+    , getHaskoinUserAgent =
+        C8.concat ["/haskoin:", C8.pack $ showVersion version, "/"]
     , getDefaultPort = 8333
     , getAllowMinDifficultyBlocks = False
     , getPowLimit = fromIntegral (maxBound `shiftR` 32 :: Word256)
@@ -181,46 +182,35 @@ prodnet = Network
     , getTargetSpacing = 10 * 60
     , getCheckpoints =
         [ ( 11111
-          , "0000000069e244f73d78e8fd29ba2fd2ed618bd6fa2ee92559f542fdb26e7c1d"
-          )
+          , "0000000069e244f73d78e8fd29ba2fd2ed618bd6fa2ee92559f542fdb26e7c1d")
         , ( 33333
-          , "000000002dd5588a74784eaa7ab0507a18ad16a236e7b1ce69f00d7ddfb5d0a6"
-          )
+          , "000000002dd5588a74784eaa7ab0507a18ad16a236e7b1ce69f00d7ddfb5d0a6")
         , ( 74000
-          , "0000000000573993a3c9e41ce34471c079dcf5f52a0e824a81e7f953b8661a20"
-          )
+          , "0000000000573993a3c9e41ce34471c079dcf5f52a0e824a81e7f953b8661a20")
         , ( 105000
-          , "00000000000291ce28027faea320c8d2b054b2e0fe44a773f3eefb151d6bdc97"
-          )
+          , "00000000000291ce28027faea320c8d2b054b2e0fe44a773f3eefb151d6bdc97")
         , ( 134444
-          , "00000000000005b12ffd4cd315cd34ffd4a594f430ac814c91184a0d42d2b0fe"
-          )
+          , "00000000000005b12ffd4cd315cd34ffd4a594f430ac814c91184a0d42d2b0fe")
         , ( 168000
-          , "000000000000099e61ea72015e79632f216fe6cb33d7899acb35b75c8303b763"
-          )
+          , "000000000000099e61ea72015e79632f216fe6cb33d7899acb35b75c8303b763")
         , ( 193000
-          , "000000000000059f452a5f7340de6682a977387c17010ff6e6c3bd83ca8b1317"
-          )
+          , "000000000000059f452a5f7340de6682a977387c17010ff6e6c3bd83ca8b1317")
         , ( 210000
-          , "000000000000048b95347e83192f69cf0366076336c639f9b7228e9ba171342e"
-          )
+          , "000000000000048b95347e83192f69cf0366076336c639f9b7228e9ba171342e")
         , ( 216116
-          , "00000000000001b4f4b433e81ee46494af945cf96014816a4e2370f11b23df4e"
-          )
+          , "00000000000001b4f4b433e81ee46494af945cf96014816a4e2370f11b23df4e")
         , ( 225430
-          , "00000000000001c108384350f74090433e7fcf79a606b8e797f065b130575932"
-          )
+          , "00000000000001c108384350f74090433e7fcf79a606b8e797f065b130575932")
         , ( 250000
-          , "000000000000003887df1f29024b06fc2200b55f8af8f35453d7be294df2d214"
-          )
+          , "000000000000003887df1f29024b06fc2200b55f8af8f35453d7be294df2d214")
         , ( 279000
-          , "0000000000000001ae8c72a0b0c301f67e3afca10e819efa9041e458e9bd7e40"
-          )
+          , "0000000000000001ae8c72a0b0c301f67e3afca10e819efa9041e458e9bd7e40")
         ]
     }
 
 testnet3 :: Network
-testnet3 = Network
+testnet3 =
+    Network
     { getNetworkName = "testnet"
     , getAddrPrefix = 111
     , getScriptPrefix = 196
@@ -228,21 +218,19 @@ testnet3 = Network
     , getExtPubKeyPrefix = 0x043587cf
     , getExtSecretPrefix = 0x04358394
     , getNetworkMagic = 0x0b110907
-    , getGenesisHeader = createBlockHeader
-        0x01
-        "0000000000000000000000000000000000000000000000000000000000000000"
-        "3ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a"
-        1296688602
-        486604799
-        414098458
-        -- Hash 000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943
+    , getGenesisHeader =
+        createBlockHeader
+            0x01
+            "0000000000000000000000000000000000000000000000000000000000000000"
+            "3ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a"
+            1296688602
+            486604799
+            414098458
+    -- Hash 000000000933ea01ad0ee984209779baaec3ced90fa3f408719526f8d77f4943
     , getMaxBlockSize = 1000000
     , getMaxSatoshi = 2100000000000000
-    , getHaskoinUserAgent = C8.concat
-        [ "/haskoin-testnet:"
-        , C8.pack $ showVersion version
-        , "/"
-        ]
+    , getHaskoinUserAgent =
+        C8.concat ["/haskoin-testnet:", C8.pack $ showVersion version, "/"]
     , getDefaultPort = 18333
     , getAllowMinDifficultyBlocks = True
     , getPowLimit = fromIntegral (maxBound `shiftR` 32 :: Word256)
@@ -250,8 +238,6 @@ testnet3 = Network
     , getTargetSpacing = 10 * 60
     , getCheckpoints =
         [ ( 546
-          , "000000002a936ca763904c3c35fce2f3556c559c0214345d31b1bcebf76acb70"
-          )
+          , "000000002a936ca763904c3c35fce2f3556c559c0214345d31b1bcebf76acb70")
         ]
     }
-

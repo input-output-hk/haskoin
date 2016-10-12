@@ -1,47 +1,51 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Network.Haskoin.Crypto.Keys
-( PubKeyI(pubKeyCompressed, pubKeyPoint)
-, PubKey, PubKeyC, PubKeyU
-, makePubKey
-, makePubKeyG
-, makePubKeyC
-, makePubKeyU
-, toPubKeyG
-, eitherPubKey
-, maybePubKeyC
-, maybePubKeyU
-, derivePubKey
-, pubKeyAddr
-, tweakPubKeyC
-, PrvKeyI(prvKeyCompressed, prvKeySecKey)
-, PrvKey, PrvKeyC, PrvKeyU
-, makePrvKey
-, makePrvKeyG
-, makePrvKeyC
-, makePrvKeyU
-, toPrvKeyG
-, eitherPrvKey
-, maybePrvKeyC
-, maybePrvKeyU
-, encodePrvKey
-, decodePrvKey
-, prvKeyPutMonad
-, prvKeyGetMonad
-, fromWif
-, toWif
-, tweakPrvKeyC
-) where
+  ( PubKeyI(pubKeyCompressed, pubKeyPoint)
+  , PubKey
+  , PubKeyC
+  , PubKeyU
+  , makePubKey
+  , makePubKeyG
+  , makePubKeyC
+  , makePubKeyU
+  , toPubKeyG
+  , eitherPubKey
+  , maybePubKeyC
+  , maybePubKeyU
+  , derivePubKey
+  , pubKeyAddr
+  , tweakPubKeyC
+  , PrvKeyI(prvKeyCompressed, prvKeySecKey)
+  , PrvKey
+  , PrvKeyC
+  , PrvKeyU
+  , makePrvKey
+  , makePrvKeyG
+  , makePrvKeyC
+  , makePrvKeyU
+  , toPrvKeyG
+  , eitherPrvKey
+  , maybePrvKeyC
+  , maybePrvKeyU
+  , encodePrvKey
+  , decodePrvKey
+  , prvKeyPutMonad
+  , prvKeyGetMonad
+  , fromWif
+  , toWif
+  , tweakPrvKeyC
+  ) where
 
 import           Control.Applicative           ((<|>))
 import           Control.DeepSeq               (NFData, rnf)
 import           Control.Monad                 (guard, mzero, (<=<))
 import qualified Crypto.Secp256k1              as EC
-import           Data.Aeson                    (FromJSON, ToJSON,
-                                                Value (String), parseJSON,
-                                                toJSON, withText)
+import           Data.Aeson                    (FromJSON, ToJSON, Value (String),
+                                                parseJSON, toJSON, withText)
 import           Data.ByteString               (ByteString)
-import qualified Data.ByteString               as BS (cons, elem, head, init,
-                                                      last, length, pack, snoc,
-                                                      tail)
+import qualified Data.ByteString               as BS (cons, elem, head, init, last,
+                                                      length, pack, snoc, tail)
 import           Data.Maybe                    (fromMaybe)
 import           Data.Serialize                (Serialize, encode, get, put)
 import           Data.Serialize.Get            (Get, getByteString)
@@ -56,7 +60,9 @@ import           Text.Read                     (lexP, parens, pfail, readPrec)
 import qualified Text.Read                     as Read (Lexeme (Ident, String))
 
 data Generic
+
 data Compressed
+
 data Uncompressed
 
 -- | Elliptic curve public key type. Two constructors are provided for creating
@@ -64,7 +70,9 @@ data Uncompressed
 -- keys is preferred as it produces shorter keys without compromising security.
 -- Uncompressed keys are supported for backwards compatibility.
 type PubKey = PubKeyI Generic
+
 type PubKeyC = PubKeyI Compressed
+
 type PubKeyU = PubKeyI Uncompressed
 
 -- Internal type for public keys
@@ -75,56 +83,58 @@ data PubKeyI c = PubKeyI
 
 -- TODO: Test
 instance Show PubKey where
-    showsPrec d k = showParen (d > 10) $
-        showString "PubKey " . shows (encodeHex $ encode k)
+    showsPrec d k =
+        showParen (d > 10) $ showString "PubKey " . shows (encodeHex $ encode k)
 
 -- TODO: Test
 instance Show PubKeyC where
-    showsPrec d k = showParen (d > 10) $
+    showsPrec d k =
+        showParen (d > 10) $
         showString "PubKeyC " . shows (encodeHex $ encode k)
 
 -- TODO: Test
 instance Show PubKeyU where
-    showsPrec d k = showParen (d > 10) $
+    showsPrec d k =
+        showParen (d > 10) $
         showString "PubKeyU " . shows (encodeHex $ encode k)
 
 -- TODO: Test
 instance Read PubKey where
-    readPrec = parens $ do
-        Read.Ident "PubKey" <- lexP
-        Read.String str <- lexP
-        maybe pfail return $ decodeToMaybe <=< decodeHex $ cs str
+    readPrec =
+        parens $
+        do Read.Ident "PubKey" <- lexP
+           Read.String str <- lexP
+           maybe pfail return $ decodeToMaybe <=< decodeHex $ cs str
 
 -- TODO: Test
 instance Read PubKeyC where
-    readPrec = parens $ do
-        Read.Ident "PubKeyC" <- lexP
-        Read.String str <- lexP
-        maybe pfail return $ decodeToMaybe <=< decodeHex $ cs str
+    readPrec =
+        parens $
+        do Read.Ident "PubKeyC" <- lexP
+           Read.String str <- lexP
+           maybe pfail return $ decodeToMaybe <=< decodeHex $ cs str
 
 -- TODO: Test
 instance Read PubKeyU where
-    readPrec = parens $ do
-        Read.Ident "PubKeyU" <- lexP
-        Read.String str <- lexP
-        maybe pfail return $ decodeToMaybe <=< decodeHex $ cs str
+    readPrec =
+        parens $
+        do Read.Ident "PubKeyU" <- lexP
+           Read.String str <- lexP
+           maybe pfail return $ decodeToMaybe <=< decodeHex $ cs str
 
 -- TODO: Test
 instance IsString PubKey where
-    fromString str =
-        fromMaybe e $ decodeToMaybe <=< decodeHex $ cs str
+    fromString str = fromMaybe e $ decodeToMaybe <=< decodeHex $ cs str
       where
         e = error "Could not decode public key"
 
 instance IsString PubKeyC where
-    fromString str =
-        fromMaybe e $ decodeToMaybe <=< decodeHex $ cs str
+    fromString str = fromMaybe e $ decodeToMaybe <=< decodeHex $ cs str
       where
         e = error "Could not decode compressed public key"
 
 instance IsString PubKeyU where
-    fromString str =
-        fromMaybe e $ decodeToMaybe <=< decodeHex $ cs str
+    fromString str = fromMaybe e $ decodeToMaybe <=< decodeHex $ cs str
       where
         e = error "Could not decode uncompressed public key"
 
@@ -135,21 +145,24 @@ instance ToJSON PubKey where
     toJSON = String . cs . encodeHex . encode
 
 instance FromJSON PubKey where
-    parseJSON = withText "PubKey" $
+    parseJSON =
+        withText "PubKey" $
         maybe mzero return . (decodeToMaybe =<<) . decodeHex . cs
 
 instance ToJSON PubKeyC where
     toJSON = String . cs . encodeHex . encode
 
 instance FromJSON PubKeyC where
-    parseJSON = withText "PubKeyC" $
+    parseJSON =
+        withText "PubKeyC" $
         maybe mzero return . (decodeToMaybe =<<) . decodeHex . cs
 
 instance ToJSON PubKeyU where
     toJSON = String . cs . encodeHex . encode
 
 instance FromJSON PubKeyU where
-    parseJSON = withText "PubKeyU" $
+    parseJSON =
+        withText "PubKeyU" $
         maybe mzero return . (decodeToMaybe =<<) . decodeHex . cs
 
 -- Constructors for public keys
@@ -171,17 +184,17 @@ toPubKeyG (PubKeyI p c) = makePubKeyG c p
 eitherPubKey :: PubKeyI c -> Either PubKeyU PubKeyC
 eitherPubKey pk
     | pubKeyCompressed pk = Right $ makePubKeyC $ pubKeyPoint pk
-    | otherwise           = Left  $ makePubKeyU $ pubKeyPoint pk
+    | otherwise = Left $ makePubKeyU $ pubKeyPoint pk
 
 maybePubKeyC :: PubKeyI c -> Maybe PubKeyC
 maybePubKeyC pk
     | pubKeyCompressed pk = Just $ makePubKeyC $ pubKeyPoint pk
-    | otherwise           = Nothing
+    | otherwise = Nothing
 
 maybePubKeyU :: PubKeyI c -> Maybe PubKeyU
 maybePubKeyU pk
     | not (pubKeyCompressed pk) = Just $ makePubKeyU $ pubKeyPoint pk
-    | otherwise                 = Nothing
+    | otherwise = Nothing
 
 -- | Derives a public key from a private key. This function will preserve
 -- information on key compression ('PrvKey' becomes 'PubKey' and 'PrvKeyU'
@@ -190,22 +203,20 @@ derivePubKey :: PrvKeyI c -> PubKeyI c
 derivePubKey (PrvKeyI d c) = PubKeyI (EC.derivePubKey d) c
 
 instance Serialize PubKey where
-    get =
-        (toPubKeyG <$> getC) <|> (toPubKeyG <$> getU)
+    get = (toPubKeyG <$> getC) <|> (toPubKeyG <$> getU)
       where
         getC = get :: Get (PubKeyI Compressed)
         getU = get :: Get (PubKeyI Uncompressed)
-
-    put pk = case eitherPubKey pk of
-        Left k  -> put k
-        Right k -> put k
+    put pk =
+        case eitherPubKey pk of
+            Left k  -> put k
+            Right k -> put k
 
 instance Serialize PubKeyC where
     get = do
         bs <- getByteString 33
         guard $ BS.head bs `BS.elem` BS.pack [0x02, 0x03]
         maybe mzero return $ makePubKeyC <$> EC.importPubKey bs
-
     put pk = putByteString $ EC.exportPubKey True $ pubKeyPoint pk
 
 instance Serialize PubKeyU where
@@ -213,28 +224,26 @@ instance Serialize PubKeyU where
         bs <- getByteString 65
         guard $ BS.head bs == 0x04
         maybe mzero return $ makePubKeyU <$> EC.importPubKey bs
-
     put pk = putByteString $ EC.exportPubKey False $ pubKeyPoint pk
 
 -- | Computes an 'Address' from a public key
-pubKeyAddr :: Serialize (PubKeyI c) => PubKeyI c -> Address
+pubKeyAddr
+    :: Serialize (PubKeyI c)
+    => PubKeyI c -> Address
 pubKeyAddr = PubKeyAddress . hash160 . getHash256 . hash256 . encode
 
 -- | Tweak a compressed public key
 tweakPubKeyC :: PubKeyC -> Hash256 -> Maybe PubKeyC
-tweakPubKeyC pub h =
-    makePubKeyC <$> (EC.tweakAddPubKey point =<< tweak)
+tweakPubKeyC pub h = makePubKeyC <$> (EC.tweakAddPubKey point =<< tweak)
   where
     point = pubKeyPoint pub
     tweak = EC.tweak $ getHash256 h
 
 {- Private Keys -}
-
 -- | Elliptic curve private key type. Two constructors are provided for creating
 -- compressed or uncompressed private keys. Compression information is stored
 -- in private key WIF formats and needs to be preserved to generate the correct
 -- addresses from the corresponding public key.
-
 -- Internal private key type
 data PrvKeyI c = PrvKeyI
     { prvKeySecKey     :: !EC.SecKey
@@ -246,50 +255,49 @@ instance NFData (PrvKeyI c) where
 
 -- TODO: Test
 instance Show PrvKey where
-    showsPrec d k = showParen (d > 10) $
-        showString "PrvKey " . shows (toWif k)
+    showsPrec d k = showParen (d > 10) $ showString "PrvKey " . shows (toWif k)
 
 -- TODO: Test
 instance Show PrvKeyC where
-    showsPrec d k = showParen (d > 10) $
-        showString "PrvKeyC " . shows (toWif k)
+    showsPrec d k = showParen (d > 10) $ showString "PrvKeyC " . shows (toWif k)
 
 -- TODO: Test
 instance Show PrvKeyU where
-    showsPrec d k = showParen (d > 10) $
-        showString "PrvKeyU " . shows (toWif k)
+    showsPrec d k = showParen (d > 10) $ showString "PrvKeyU " . shows (toWif k)
 
 -- TODO: Test
 instance Read PrvKey where
-    readPrec = parens $ do
-        Read.Ident "PrvKey" <- lexP
-        Read.String str <- lexP
-        maybe pfail return $ fromWif $ cs str
+    readPrec =
+        parens $
+        do Read.Ident "PrvKey" <- lexP
+           Read.String str <- lexP
+           maybe pfail return $ fromWif $ cs str
 
 -- TODO: Test
 instance Read PrvKeyC where
-    readPrec = parens $ do
-        Read.Ident "PrvKeyC" <- lexP
-        Read.String str <- lexP
-        key <- maybe pfail return $ fromWif $ cs str
-        case eitherPrvKey key of
-            Left _  -> pfail
-            Right k -> return k
+    readPrec =
+        parens $
+        do Read.Ident "PrvKeyC" <- lexP
+           Read.String str <- lexP
+           key <- maybe pfail return $ fromWif $ cs str
+           case eitherPrvKey key of
+               Left _  -> pfail
+               Right k -> return k
 
 -- TODO: Test
 instance Read PrvKeyU where
-    readPrec = parens $ do
-        Read.Ident "PrvKeyU" <- lexP
-        Read.String str <- lexP
-        key <- maybe pfail return $ fromWif $ cs str
-        case eitherPrvKey key of
-            Left k  -> return k
-            Right _ -> pfail
+    readPrec =
+        parens $
+        do Read.Ident "PrvKeyU" <- lexP
+           Read.String str <- lexP
+           key <- maybe pfail return $ fromWif $ cs str
+           case eitherPrvKey key of
+               Left k  -> return k
+               Right _ -> pfail
 
 -- TODO: Test
 instance IsString PrvKey where
-    fromString str =
-        fromMaybe e $ fromWif $ cs str
+    fromString str = fromMaybe e $ fromWif $ cs str
       where
         e = error "Could not decode WIF"
 
@@ -310,11 +318,13 @@ instance IsString PrvKeyU where
             Left k  -> k
             Right _ -> undefined
       where
-        key = fromMaybe e $ fromWif $ cs str
+        key = fromMaybee $ fromWif $ cs str
         e = error "Could not decode WIF"
 
 type PrvKey = PrvKeyI Generic
+
 type PrvKeyC = PrvKeyI Compressed
+
 type PrvKeyU = PrvKeyI Uncompressed
 
 makePrvKeyI :: Bool -> EC.SecKey -> PrvKeyI c
@@ -338,17 +348,17 @@ toPrvKeyG (PrvKeyI d c) = PrvKeyI d c
 eitherPrvKey :: PrvKeyI c -> Either PrvKeyU PrvKeyC
 eitherPrvKey (PrvKeyI d compressed)
     | compressed = Right $ PrvKeyI d compressed
-    | otherwise  = Left  $ PrvKeyI d compressed
+    | otherwise = Left $ PrvKeyI d compressed
 
 maybePrvKeyC :: PrvKeyI c -> Maybe PrvKeyC
 maybePrvKeyC (PrvKeyI d compressed)
     | compressed = Just $ PrvKeyI d compressed
-    | otherwise  = Nothing
+    | otherwise = Nothing
 
 maybePrvKeyU :: PrvKeyI c -> Maybe PrvKeyU
 maybePrvKeyU (PrvKeyI d compressed)
     | not compressed = Just $ PrvKeyI d compressed
-    | otherwise      = Nothing
+    | otherwise = Nothing
 
 -- | Serialize private key as 32-byte big-endian 'ByteString'
 encodePrvKey :: PrvKeyI c -> ByteString
@@ -378,24 +388,27 @@ fromWif wif = do
     -- Check that this is a private key
     guard (BS.head bs == secretPrefix)
     case BS.length bs of
-        33 -> do               -- Uncompressed format
+        33 -- Uncompressed format
+         -> do
             makePrvKeyG False <$> EC.secKey (BS.tail bs)
-        34 -> do               -- Compressed format
+        34 -- Compressed format
+         -> do
             guard $ BS.last bs == 0x01
             makePrvKeyG True <$> EC.secKey (BS.tail $ BS.init bs)
-        _  -> Nothing          -- Bad length
+        _ -> Nothing -- Bad length
 
 -- | Encodes a private key into WIF format
 toWif :: PrvKeyI c -> ByteString
-toWif (PrvKeyI k c) = encodeBase58Check $ BS.cons secretPrefix $
-    if c then EC.getSecKey k `BS.snoc` 0x01 else EC.getSecKey k
-
+toWif (PrvKeyI k c) =
+    encodeBase58Check $
+    BS.cons secretPrefix $
+    if c
+        then EC.getSecKey k `BS.snoc` 0x01
+        else EC.getSecKey k
 
 -- | Tweak a private key
 tweakPrvKeyC :: PrvKeyC -> Hash256 -> Maybe PrvKeyC
-tweakPrvKeyC key h =
-    makePrvKeyC <$> (EC.tweakAddSecKey sec =<< tweak)
+tweakPrvKeyC key h = makePrvKeyC <$> (EC.tweakAddSecKey sec =<< tweak)
   where
-    sec   = prvKeySecKey key
+    sec = prvKeySecKey key
     tweak = EC.tweak $ getHash256 h
-
