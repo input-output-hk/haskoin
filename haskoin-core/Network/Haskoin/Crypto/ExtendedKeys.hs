@@ -669,7 +669,7 @@ parsePath str = do
     (x:xs) = splitOn "/" str
 
 concatBip32Segments :: [Bip32PathIndex] -> DerivPath
-concatBip32Segments xs = foldl' appendBip32Segment Deriv xs
+concatBip32Segments = foldl' appendBip32Segment Deriv
 
 appendBip32Segment :: DerivPath -> Bip32PathIndex -> DerivPath
 appendBip32Segment d (Bip32SoftIndex i) = d :/ i
@@ -739,7 +739,7 @@ applyPath path key =
 {- Helpers for derivation  paths and addresses -}
 -- | Derive an address froma given parent path.
 derivePathAddr :: XPubKey -> SoftPath -> KeyIndex -> (Address, PubKeyC)
-derivePathAddr key path i = deriveAddr (derivePubPath path key) i
+derivePathAddr key path = deriveAddr (derivePubPath path key)
 
 -- | Cyclic list of all addresses derived from a given parent path and starting
 -- from the given offset index.
@@ -747,7 +747,7 @@ derivePathAddrs :: XPubKey
                 -> SoftPath
                 -> KeyIndex
                 -> [(Address, PubKeyC, KeyIndex)]
-derivePathAddrs key path i = deriveAddrs (derivePubPath path key) i
+derivePathAddrs key path = deriveAddrs (derivePubPath path key)
 
 -- | Derive a multisig address from a given parent path. The number of required
 -- signatures (m in m of n) is also needed.
@@ -756,8 +756,8 @@ derivePathMSAddr :: [XPubKey]
                  -> Int
                  -> KeyIndex
                  -> (Address, RedeemScript)
-derivePathMSAddr keys path m i =
-    deriveMSAddr (map (derivePubPath path) keys) m i
+derivePathMSAddr keys path =
+    deriveMSAddr (map (derivePubPath path) keys)
 
 -- | Cyclic list of all multisig addresses derived from a given parent path and
 -- starting from the given offset index. The number of required signatures
@@ -767,8 +767,8 @@ derivePathMSAddrs :: [XPubKey]
                   -> Int
                   -> KeyIndex
                   -> [(Address, RedeemScript, KeyIndex)]
-derivePathMSAddr s keys path m i =
-    deriveMSAddr s (map (derivePubPath path) keys) m i
+derivePathMSAddrs keys path =
+    deriveMSAddrs (map (derivePubPath path) keys)
 
 {- Utilities for extended keys -}
 -- De-serialize HDW-specific private key

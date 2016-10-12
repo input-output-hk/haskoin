@@ -287,19 +287,19 @@ encodeSimpleInput s =
         SpendPKHash ts p -> [opPushData $ encodeSig ts, opPushData $ encode p]
         SpendMulSig ts   -> OP_0 : map (opPushData . encodeSig) ts
 
-decodeSimpleInput :: S cript -> Either String SimpleInput
-decodeSimpleInput (Scrip t ops) =
-    maybeToEither errMsg $matchPK ops <|> matchPKHash ops <|> matchMulSig ops
+decodeSimpleInput :: Script -> Either String SimpleInput
+decodeSimpleInput (Script ops) =
+    maybeToEither errMsg $ matchPK ops <|> matchPKHash ops <|> matchMulSig ops
   where
     matchPK [OP_PUSHDATA bs _] = SpendPK <$> eitherToMaybe (decodeSig bs)
     matchPK _                  = Nothing
     matchPKHash [OP_PUSHDATA sig _, OP_PUSHDATA pub _] =
-        li ftM2 SpendPKHash (eitherToMaybe $ decodeSig sig) (decodeToMaybe pub)
+        liftM2 SpendPKHash (eitherToMaybe $ decodeSig sig) (decodeToMaybe pub)
     matchPKHash _ = Nothing
     matchMulSig (x:xs) = do
         guard $ isPushOp x
         SpendMulSig <$> foldrM f [] xs
-    matchMulSi g _ = Nothing
+    matchMulSig _ = Nothing
     f (OP_PUSHDATA bs _) acc =
         liftM2 (:) (eitherToMaybe $ decodeSig bs) (Just acc)
     f _ _ = Nothing
@@ -309,7 +309,7 @@ encodeInput :: ScriptInput -> Script
 encodeInput s =
     case s of
         RegularInput ri -> encodeSimpleInput ri
-        ScriptHash Input i o ->
+        ScriptHashInput i o ->
             Script $
             (scriptOps $ encodeSimpleInput i) ++ [opPushData $ encodeOutputBS o]
 

@@ -266,7 +266,7 @@ instance Arbitrary ArbitrarySigningData where
         l <- arbitrary
         perm <- choose (0, length inps - 1)
         let tx = createTx v (permutations inps !! perm) outs l
-            keys = concat $ map snd uSigis
+            keys = concatMap snd uSigis
         return $ ArbitrarySigningData tx (map fst uSigis) keys
       where
         f (ArbitrarySigInput s ks) = (s, ks)
@@ -285,7 +285,7 @@ instance Arbitrary ArbitraryPartialTxs where
                 (so, rdmM, prvs, m, n) <- arbitraryData
                 txs <- mapM (singleSig so rdmM tx op) prvs
                 return (txs, (so, op, m, n))
-        return $ ArbitraryPartialTxs (concat $ map fst res) (map snd res)
+        return $ ArbitraryPartialTxs (concatMap fst res) (map snd res)
       where
         singleSig so rdmM tx op prv = do
             ArbitraryValidSigHash sh <- arbitrary

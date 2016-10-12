@@ -318,7 +318,7 @@ instance IsString PrvKeyU where
             Left k  -> k
             Right _ -> undefined
       where
-        key = fromMaybee $ fromWif $ cs str
+        key = fromMaybe e $ fromWif $ cs str
         e = error "Could not decode WIF"
 
 type PrvKey = PrvKeyI Generic
@@ -331,16 +331,16 @@ makePrvKeyI :: Bool -> EC.SecKey -> PrvKeyI c
 makePrvKeyI c d = PrvKeyI d c
 
 makePrvKey :: EC.SecKey -> PrvKey
-makePrvKey d = makePrvKeyI True d
+makePrvKey = makePrvKeyI True
 
 makePrvKeyG :: Bool -> EC.SecKey -> PrvKey
 makePrvKeyG = makePrvKeyI
 
 makePrvKeyC :: EC.SecKey -> PrvKeyC
-makePrvKeyC d = makePrvKeyI True d
+makePrvKeyC = makePrvKeyI True
 
 makePrvKeyU :: EC.SecKey -> PrvKeyU
-makePrvKeyU d = makePrvKeyI False d
+makePrvKeyU = makePrvKeyI False
 
 toPrvKeyG :: PrvKeyI c -> PrvKey
 toPrvKeyG (PrvKeyI d c) = PrvKeyI d c
@@ -371,7 +371,7 @@ decodePrvKey f bs = f <$> EC.secKey bs
 prvKeyGetMonad :: (EC.SecKey -> PrvKeyI c) -> Get (PrvKeyI c)
 prvKeyGetMonad f = do
     bs <- getByteString 32
-    fromMaybe err $ return <$> f <$> EC.secKey bs
+    fromMaybe err $ return . f <$> EC.secKey bs
   where
     err = fail "Get: Invalid private key"
 
@@ -389,8 +389,7 @@ fromWif wif = do
     guard (BS.head bs == secretPrefix)
     case BS.length bs of
         33 -- Uncompressed format
-         -> do
-            makePrvKeyG False <$> EC.secKey (BS.tail bs)
+         -> makePrvKeyG False <$> EC.secKey (BS.tail bs)
         34 -- Compressed format
          -> do
             guard $ BS.last bs == 0x01

@@ -27,7 +27,7 @@ import           Data.Aeson                        (FromJSON, ToJSON, Value (Str
                                                     parseJSON, toJSON, withText)
 import           Data.Bits                         (shiftL, shiftR, (.&.), (.|.))
 import           Data.ByteString                   (ByteString)
-import qualified Data.ByteString                   as BS (length, replicate, reverse)
+import qualified Data.ByteString                   as BS (length, reverse)
 import qualified Data.Map                          as M (Map, elems)
 import           Data.Maybe                        (fromMaybe)
 import           Data.Serialize                    (Serialize, encode, get, put)

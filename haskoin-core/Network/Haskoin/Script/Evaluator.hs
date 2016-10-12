@@ -28,6 +28,7 @@ module Network.Haskoin.Script.Evaluator
 -- * Script evaluation
 -- * Evaluation data types
 -- * Helper functions
+import           Control.Monad                     (when)
 import           Control.Monad.Except
 import           Control.Monad.Identity
 import           Control.Monad.Reader
@@ -160,7 +161,7 @@ programError :: String -> StackOperation a
 programError s = get >>= throwError . ProgramError s
 
 disabled :: ScriptOp -> StackOperation ()
-disabled op = throwError . DisabledOp $ op
+disabled = throwError . DisabledOp
 
 --------------------------------------------------------------------------------
 -- Type Conversions
@@ -335,8 +336,8 @@ checkPushData _ = return ()
 
 checkStackSize :: StackOperation ()
 checkStackSize = do
-    n <- length <$> stack <$> get
-    m <- length <$> altStack <$> get
+    n <- length . stack <$> get
+    m <- length . altStack <$> get
     when ((n + m) > fromIntegral maxStackSize) $
         programError "stack > maxStackSize"
 
@@ -493,23 +494,22 @@ incrementOpCount i
 nopDiscourager :: StackOperation ()
 nopDiscourager = do
     flgs <- ask
-    if DISCOURAGE_UPGRADABLE_NOPS `elem` flgs
-        then programError "Discouraged OP used."
-        else return ()
+    when (DISCOURAGE_UPGRADABLE_NOPS `elem` flgs) $
+        programError "Discouraged OP used."
 
 -- Instruction Evaluation
 eval :: ScriptOp -> StackOperation ()
 eval OP_NOP = return ()
-eval OP_NOP1 = nopDiscourager >> return ()
-eval OP_NOP2 = nopDiscourager >> return ()
-eval OP_NOP3 = nopDiscourager >> return ()
-eval OP_NOP4 = nopDiscourager >> return ()
-eval OP_NOP5 = nopDiscourager >> return ()
-eval OP_NOP6 = nopDiscourager >> return ()
-eval OP_NOP7 = nopDiscourager >> return ()
-eval OP_NOP8 = nopDiscourager >> return ()
-eval OP_NOP9 = nopDiscourager >> return ()
-eval OP_NOP10 = nopDiscourager >> return ()
+eval OP_NOP1 = void nopDiscourager
+eval OP_NOP2 = void nopDiscourager
+eval OP_NOP3 = void nopDiscourager
+eval OP_NOP4 = void nopDiscourager
+eval OP_NOP5 = void nopDiscourager
+eval OP_NOP6 = void nopDiscourager
+eval OP_NOP7 = void nopDiscourager
+eval OP_NOP8 = void nopDiscourager
+eval OP_NOP9 = void nopDiscourager
+eval OP_NOP10 = void nopDiscourager
 eval OP_VERIFY =
     popBool >>=
     \case
@@ -542,7 +542,7 @@ eval OP_2OVER = tStack4 $ \a b c d -> [c, d, a, b, c, d]
 eval OP_2ROT = tStack6 $ \a b c d e f -> [e, f, a, b, c, d]
 eval OP_2SWAP = tStack4 $ \a b c d -> [c, d, a, b]
 -- Splice
-eval OP_SIZE = (fromIntegral . length <$> head <$> withStack) >>= pushInt
+eval OP_SIZE = (fromIntegral . length) . head <$> withStack >>= pushInt
 -- Bitwise Logic
 eval OP_EQUAL = tStack2 $ \a b -> [encodeBool (a == b)]
 eval OP_EQUALVERIFY = eval OP_EQUAL >> eval OP_VERIFY
@@ -620,28 +620,24 @@ eval op =
 minimalPushEnforcer :: ScriptOp -> StackOperation ()
 minimalPushEnforcer op = do
     flgs <- ask
-    if not $ MINIMALDATA `elem` flgs
-        then return ()
-        else case checkMinimalPush op of
-                 True  -> return ()
-                 False -> programError $ "Non-minimal data: " ++ (show op)
+    when (MINIMALDATA `elem` flgs && not (checkMinimalPush op)) $
+        programError $ "Non-minimal data: " ++ (show op)
 
 checkMinimalPush :: ScriptOp -> Bool -- Putting in a maybe monad to avoid elif chain
 checkMinimalPush (OP_PUSHDATA payload optype) =
     let l = BS.length payload
-        v = (BS.unpack payload) !! 0
-    in if (BS.null payload) -- Check if could have used OP_0
-           ||
-          (l == 1 && v <= 16 && v >= 1) -- Could have used OP_{1,..,16}
-           ||
-          (l == 1 && v == 0x81) -- Could have used OP_1NEGATE
-           ||
-          (l <= 75 && optype /= OPCODE) -- Could have used direct push
-           ||
-          (l <= 255 && l > 75 && optype /= OPDATA1) ||
-          (l > 255 && l <= 65535 && optype /= OPDATA2)
-           then False
-           else True
+        v = head (BS.unpack payload)
+    in not
+           ((BS.null payload) -- Check if could have used OP_0
+             ||
+            (l == 1 && v <= 16 && v >= 1) -- Could have used OP_{1,..,16}
+             ||
+            (l == 1 && v == 0x81) -- Could have used OP_1NEGATE
+             ||
+            (l <= 75 && optype /= OPCODE) -- Could have used direct push
+             ||
+            (l <= 255 && l > 75 && optype /= OPDATA1) ||
+            (l > 255 && l <= 65535 && optype /= OPDATA2))
 checkMinimalPush _ = True
 
 -- | Checks the top of the stack for a minimal numeric representation
@@ -654,13 +650,10 @@ minimalStackValEnforcer = do
             if null s
                 then []
                 else head s
-    if not $ MINIMALDATA `elem` flgs || null topStack
-        then return ()
-        else case checkMinimalNumRep topStack of
-                 True -> return ()
-                 False ->
-                     programError $
-                     "Non-minimal stack value: " ++ (show topStack)
+    when
+        ((MINIMALDATA `elem` flgs || null topStack) &&
+         not (checkMinimalNumRep topStack)) $
+        programError $ "Non-minimal stack value: " ++ (show topStack)
 
 -- | Checks if a stack value is the minimal numeric representation of
 -- the integer to which it decoes.  Based on CScriptNum from Bitcoin
@@ -671,20 +664,18 @@ checkMinimalNumRep s =
     let msb = last s
         l = length s
         -- If the MSB except sign bit is zero, then nonMinimal
-    in if (msb .&. 0x7f == 0)
-          -- With the exception of when a new byte is forced by a filled last bit
-           &&
-          (l <= 1 || (s !! (l - 2)) .&. 0x80 == 0)
-           then False
-           else True
+    in not
+           ((msb .&. 0x7f == 0)
+            -- With the exception of when a new byte is forced by a filled last bit
+             &&
+            (l <= 1 || (s !! (l - 2)) .&. 0x80 == 0))
 
 nullDummyEnforcer :: StackOperation ()
 nullDummyEnforcer = do
     flgs <- ask
     topStack <- (getStack >>= headOrError)
-    if (NULLDUMMY `elem` flgs) && (not . null $ topStack)
-        then programError $ "Non-null dummy stack in multi-sig"
-        else return ()
+    when ((NULLDUMMY `elem` flgs) && (not . null $ topStack)) $
+        programError $ "Non-null dummy stack in multi-sig"
   where
     headOrError s =
         if null s
@@ -705,7 +696,7 @@ conditionalEval scrpOp
     lift $ checkPushData scrpOp
     e <- getExec
     eval' e scrpOp
-    when (countOp scrpOp) $ lift $ join $ incrementOpCount <$> opCount <$> get
+    when (countOp scrpOp) $ lift $ join $ incrementOpCount . opCount <$> get
     lift checkStackSize
   where
     eval' :: Bool -> ScriptOp -> Program ()

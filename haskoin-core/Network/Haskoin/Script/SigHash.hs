@@ -155,12 +155,11 @@ txSigHash tx out i sh = do
 buildInputs :: [TxIn] -> Script -> Int -> SigHash -> [TxIn]
 buildInputs txins out i sh
     | anyoneCanPay sh =
-        (txins !! i)
+        [(txins !! i)
         { scriptInput = encode out
-        } :
-        []
+        }]
     | isSigAll sh || isSigUnknown sh = single
-    | otherwise = map noSeq $ zip single [0 ..]
+    | otherwise = zipWith (curry noSeq) single [0 ..]
   where
     empty =
         map
@@ -222,4 +221,4 @@ decodeCanonicalSig bs
             Just sig -> TxSignature sig <$> decode (BS.singleton $ BS.last bs)
             Nothing  -> Left "Non-canonical signature: could not parse signature"
   where
-    hashtype = clear Bit (BS.last bs) 7
+    hashtype = clearBit (BS.last bs) 7

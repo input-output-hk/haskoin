@@ -131,7 +131,7 @@ indicesToBS is = do
     when lrg $ Left "indicesToBS: index larger or equal than 2048"
     return . pad . integerToBS $ foldl' f 0 is `shiftL` shift_width
   where
-    lrg = not . isNothing $ find (>= 2048) is
+    lrg = isJust $ find (>= 2048) is
     (q, r) = (length is * 11) `quotRem` 8
     shift_width =
         if r == 0

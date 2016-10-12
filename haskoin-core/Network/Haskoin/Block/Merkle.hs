@@ -142,7 +142,7 @@ traverseAndBuild height pos txs
     t = map fst txs
     s = pos `shiftL` height
     e = min (length txs) $ (pos + 1) `shiftL` height
-    match = or $ map snd $ take (e - s) $ drop s txs
+    match = any snd $ take (e - s) $ drop s txs
     (lb, lh) = traverseAndBuild (height - 1) (pos * 2) txs
     (rb, rh)
         | (pos * 2 + 1) < calcTreeWidth (length txs) (height - 1) =
@@ -157,7 +157,7 @@ traverseAndExtract
     -> PartialMerkleTree
     -> Maybe (MerkleRoot, [TxHash], Int, Int)
 traverseAndExtract height pos ntx flags hashes
-    | length flags == 0 = Nothing
+    | null flags = Nothing
     | height == 0 || not match = leafResult
     | isNothing leftM = Nothing
     | (pos * 2 + 1) >= calcTreeWidth ntx (height - 1) =
@@ -170,9 +170,7 @@ traverseAndExtract height pos ntx flags hashes
         | otherwise =
             Just
                 ( h
-                , if height == 0 && match
-                      then [TxHash h]
-                      else []
+                , [TxHash h | height == 0 && match]
                 , 1
                 , 1)
     (match:fs) = flags
@@ -220,7 +218,7 @@ extractMatches flags hashes ntx
 
 splitIn :: Int -> [a] -> [[a]]
 splitIn _ [] = []
-splitIn c xs = take c xs : (splitIn c $ drop c xs)
+splitIn c xs = take c xs : splitIn c (drop c xs)
 
 boolsToWord8 :: [Bool] -> Word8
 boolsToWord8 [] = 0
