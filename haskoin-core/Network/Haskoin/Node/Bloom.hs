@@ -1,30 +1,32 @@
 module Network.Haskoin.Node.Bloom
-  ( BloomFlags(..)
-  , BloomFilter(..)
-  , FilterLoad(..)
-  , FilterAdd(..)
-  , bloomCreate
-  , bloomInsert
-  , bloomContains
-  , isBloomValid
-  , isBloomEmpty
-  , isBloomFull
-  ) where
+       ( BloomFlags(..)
+       , BloomFilter(..)
+       , FilterLoad(..)
+       , FilterAdd(..)
+       , bloomCreate
+       , bloomInsert
+       , bloomContains
+       , isBloomValid
+       , isBloomEmpty
+       , isBloomFull
+       ) where
 
 import           Control.DeepSeq            (NFData, rnf)
 import           Control.Monad              (forM_, replicateM)
 
-import           Data.Bits
+import           Data.Bits                  (shiftR, (.&.), (.|.))
 import qualified Data.ByteString            as BS
 import qualified Data.Foldable              as F
 import           Data.Hash.Murmur           (murmur3)
 import qualified Data.Sequence              as S
 import           Data.Serialize             (Serialize, get, put)
-import           Data.Serialize.Get         (getByteString, getWord32le, getWord8)
-import           Data.Serialize.Put         (putByteString, putWord32le, putWord8)
-import           Data.Word
+import           Data.Serialize.Get         (getByteString, getWord32le,
+                                             getWord8)
+import           Data.Serialize.Put         (putByteString, putWord32le,
+                                             putWord8)
+import           Data.Word                  (Word32, Word8)
 
-import           Network.Haskoin.Node.Types
+import           Network.Haskoin.Node.Types (VarInt (..))
 
 -- 20,000 items with fp rate < 0.1% or 10,000 items and <0.0001%
 maxBloomSize :: Int
@@ -90,9 +92,10 @@ instance NFData BloomFilter where
     rnf (BloomFilter d h t g) = rnf d `seq` rnf h `seq` rnf t `seq` rnf g
 
 instance Serialize BloomFilter where
-    get =
-        BloomFilter <$> (S.fromList <$> (readDat =<< get)) <*> getWord32le <*> getWord32le <*>
-        get
+    get = BloomFilter <$> (S.fromList <$> (readDat =<< get))
+                      <*> getWord32le
+                      <*> getWord32le
+                      <*> get
       where
         readDat (VarInt len) = replicateM (fromIntegral len) getWord8
     put (BloomFilter dat hashFuncs tweak flags) = do
@@ -145,7 +148,8 @@ bloomCreate
     -> BloomFilter -- ^ Bloom filter
 bloomCreate numElem fpRate = BloomFilter (S.replicate bloomSize 0) numHashF
   where
-    bloomSize = truncate $ (min a b) / 8
+    -- Bloom filter size in bytes
+    bloomSize = truncate $ min a b / 8
     -- Suggested size in bits
     a = -1 / ln2Squared * (fromIntegral numElem) * log fpRate
     -- Maximum size in bits
@@ -159,7 +163,7 @@ bloomHash :: BloomFilter -> Word32 -> BS.ByteString -> Word32
 bloomHash bfilter hashNum bs =
     murmur3 seed bs `mod` (fromIntegral (S.length (bloomData bfilter)) * 8)
   where
-    seed = hashNum * 0xfba4c795 + (bloomTweak bfilter)
+    seed = hashNum * 0xfba4c795 + bloomTweak bfilter
 
 -- | Insert arbitrary data into a bloom filter. Returns the new bloom filter
 -- containing the new data.
@@ -216,5 +220,5 @@ isBloomValid
     :: BloomFilter -- ^ Bloom filter to test
     -> Bool -- ^ True if the given filter is valid
 isBloomValid bfilter =
-    (S.length $ bloomData bfilter) <= maxBloomSize &&
-    (bloomHashFuncs bfilter) <= maxHashFuncs
+    S.length (bloomData bfilter) <= maxBloomSize &&
+    bloomHashFuncs bfilter <= maxHashFuncs

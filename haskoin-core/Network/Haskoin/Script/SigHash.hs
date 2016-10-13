@@ -1,36 +1,41 @@
 module Network.Haskoin.Script.SigHash
-  ( SigHash(..)
-  , encodeSigHash32
-  , isSigAll
-  , isSigNone
-  , isSigSingle
-  , isSigUnknown
-  , txSigHash
-  , TxSignature(..)
-  , encodeSig
-  , decodeSig
-  , decodeCanonicalSig
-  ) where
+       ( SigHash(..)
+       , encodeSigHash32
+       , isSigAll
+       , isSigNone
+       , isSigSingle
+       , isSigUnknown
+       , txSigHash
+       , TxSignature(..)
+       , encodeSig
+       , decodeSig
+       , decodeCanonicalSig
+       ) where
 
 import           Control.DeepSeq                   (NFData, rnf)
 import           Control.Monad                     (liftM2, mzero, (<=<))
-import           Data.Aeson                        (FromJSON, ToJSON, Value (String),
-                                                    parseJSON, toJSON, withText)
+import           Data.Aeson                        (FromJSON, ToJSON,
+                                                    Value (String), parseJSON,
+                                                    toJSON, withText)
 import           Data.Bits                         (clearBit, testBit)
 import           Data.ByteString                   (ByteString)
-import qualified Data.ByteString                   as BS (append, empty, init, last,
-                                                          length, pack, singleton,
-                                                          splitAt)
+import qualified Data.ByteString                   as BS (append, empty, init,
+                                                          last, length, pack,
+                                                          singleton, splitAt)
 import           Data.Maybe                        (fromMaybe)
-import           Data.Serialize                    (Serialize, decode, encode, get,
-                                                    getWord8, put, putWord8, runPut)
+import           Data.Serialize                    (Serialize, decode, encode,
+                                                    get, getWord8, put,
+                                                    putWord8, runPut)
 import           Data.String.Conversions           (cs)
 import           Data.Word                         (Word8)
-import           Network.Haskoin.Crypto.ECDSA
-import           Network.Haskoin.Crypto.Hash
-import           Network.Haskoin.Script.Types
-import           Network.Haskoin.Transaction.Types
-import           Network.Haskoin.Util
+import           Network.Haskoin.Crypto.ECDSA      (Signature, decodeStrictSig)
+import           Network.Haskoin.Crypto.Hash       (Hash256, doubleHash256)
+import           Network.Haskoin.Script.Types      (Script)
+import           Network.Haskoin.Transaction.Types (Tx (..), TxIn, TxOut (..),
+                                                    createTx, scriptInput,
+                                                    txInSequence)
+import           Network.Haskoin.Util              (decodeHex, decodeToMaybe,
+                                                    encodeHex, updateIndex)
 
 -- | Data type representing the different ways a transaction can be signed.
 -- When producing a signature, a hash of the transaction is used as the message

@@ -1,31 +1,32 @@
 -- | Hashing functions and HMAC DRBG definition
 module Network.Haskoin.Crypto.Hash
-  ( Hash512(getHash512)
-  , Hash256(getHash256)
-  , Hash160(getHash160)
-  , CheckSum32(getCheckSum32)
-  , bsToHash512
-  , bsToHash256
-  , bsToHash160
-  , hash512
-  , hash256
-  , hash160
-  , sha1
-  , doubleHash256
-  , bsToCheckSum32
-  , checkSum32
-  , hmac512
-  , hmac256
-  , split512
-  , join512
-  , hmacDRBGNew
-  , hmacDRBGUpd
-  , hmacDRBGRsd
-  , hmacDRBGGen
-  , WorkingState
-  ) where
+       ( Hash512(getHash512)
+       , Hash256(getHash256)
+       , Hash160(getHash160)
+       , CheckSum32(getCheckSum32)
+       , bsToHash512
+       , bsToHash256
+       , bsToHash160
+       , hash512
+       , hash256
+       , hash160
+       , sha1
+       , doubleHash256
+       , bsToCheckSum32
+       , checkSum32
+       , hmac512
+       , hmac256
+       , split512
+       , join512
+       , hmacDRBGNew
+       , hmacDRBGUpd
+       , hmacDRBGRsd
+       , hmacDRBGGen
+       , WorkingState
+       ) where
 
-import           Crypto.Hash             (Digest, RIPEMD160, SHA1, SHA256, SHA512, hash)
+import           Crypto.Hash             (Digest, RIPEMD160, SHA1, SHA256,
+                                          SHA512, hash)
 import           Crypto.MAC.HMAC         (hmac)
 
 import           Control.DeepSeq         (NFData, rnf)
@@ -38,14 +39,15 @@ import           Data.Serialize.Put      (putByteString)
 import           Data.String             (IsString, fromString)
 import           Data.String.Conversions (cs)
 import           Data.Word               (Word16)
-import           Text.Read               (Lexeme (Ident, String), lexP, parens, pfail,
-                                          readPrec)
+import           Text.Read               (Lexeme (Ident, String), lexP, parens,
+                                          pfail, readPrec)
 
 import           Data.ByteString         (ByteString)
-import qualified Data.ByteString         as BS (append, concat, cons, empty, length, null,
-                                                replicate, splitAt, take)
+import qualified Data.ByteString         as BS (append, concat, cons, empty,
+                                                length, null, replicate,
+                                                splitAt, take)
 
-import           Network.Haskoin.Util
+import           Network.Haskoin.Util    (decodeHex, encodeHex)
 
 newtype CheckSum32 = CheckSum32
     { getCheckSum32 :: ByteString
@@ -259,11 +261,11 @@ hmacDRBGUpd info k0 v0
 hmacDRBGNew :: EntropyInput -> Nonce -> PersString -> WorkingState
 hmacDRBGNew seed nonce info
     | (BS.length seed + BS.length nonce) * 8 < 384 =
-        error $ "Entropy + nonce input length must be at least 384 bit"
+        error "Entropy + nonce input length must be at least 384 bit"
     | (BS.length seed + BS.length nonce) * 8 > 1000 =
-        error $ "Entropy + nonce input length can not be greater than 1000 bit"
+        error "Entropy + nonce input length can not be greater than 1000 bit"
     | BS.length info * 8 > 256 =
-        error $ "Maximum personalization string length is 256 bit"
+        error "Maximum personalization string length is 256 bit"
     | otherwise = (k1, v1, 1) -- 10.1.2.3.6
   where
     s = BS.concat [seed, nonce, info] -- 10.1.2.3.1
@@ -275,9 +277,9 @@ hmacDRBGNew seed nonce info
 hmacDRBGRsd :: WorkingState -> EntropyInput -> AdditionalInput -> WorkingState
 hmacDRBGRsd (k, v, _) seed info
     | BS.length seed * 8 < 256 =
-        error $ "Entropy input length must be at least 256 bit"
+        error "Entropy input length must be at least 256 bit"
     | BS.length seed * 8 > 1000 =
-        error $ "Entropy input length can not be greater than 1000 bit"
+        error "Entropy input length can not be greater than 1000 bit"
     | otherwise = (k0, v0, 1) -- 10.1.2.4.4
   where
     s = seed `BS.append` info -- 10.1.2.4.1
@@ -298,8 +300,8 @@ hmacDRBGGen (k0, v0, c0) bytes info
         | otherwise = hmacDRBGUpd info k0 v0 -- 10.1.2.5.2
     (tmp, v2) = go (fromIntegral bytes) k1 v1 BS.empty -- 10.1.2.5.3/4
     res = BS.take (fromIntegral bytes) tmp -- 10.1.2.5.5
-    (k2, v3) = hmacDRBGUpd info k1 v2 -- 10.1.2.5.6
-    c1 = c0 + 1 -- 10.1.2.5.7
+    (k2, v3) = hmacDRBGUpd info k1 v2      -- 10.1.2.5.6
+    c1 = c0 + 1                            -- 10.1.2.5.7
     go l k v acc
         | BS.length acc >= l = (acc, v)
         | otherwise =

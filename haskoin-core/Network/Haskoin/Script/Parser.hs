@@ -1,49 +1,54 @@
 module Network.Haskoin.Script.Parser
-  ( ScriptOutput(..)
-  , ScriptInput(..)
-  , SimpleInput(..)
-  , RedeemScript
-  , scriptAddr
-  , outputAddress
-  , inputAddress
-  , encodeInput
-  , encodeInputBS
-  , decodeInput
-  , decodeInputBS
-  , encodeOutput
-  , encodeOutputBS
-  , decodeOutput
-  , decodeOutputBS
-  , sortMulSig
-  , intToScriptOp
-  , scriptOpToInt
-  , isPayPK
-  , isPayPKHash
-  , isPayMulSig
-  , isPayScriptHash
-  , isSpendPK
-  , isSpendPKHash
-  , isSpendMulSig
-  , isScriptHashInput
-  ) where
+       ( ScriptOutput(..)
+       , ScriptInput(..)
+       , SimpleInput(..)
+       , RedeemScript
+       , scriptAddr
+       , outputAddress
+       , inputAddress
+       , encodeInput
+       , encodeInputBS
+       , decodeInput
+       , decodeInputBS
+       , encodeOutput
+       , encodeOutputBS
+       , decodeOutput
+       , decodeOutputBS
+       , sortMulSig
+       , intToScriptOp
+       , scriptOpToInt
+       , isPayPK
+       , isPayPKHash
+       , isPayMulSig
+       , isPayScriptHash
+       , isSpendPK
+       , isSpendPKHash
+       , isSpendMulSig
+       , isScriptHashInput
+       ) where
 
 import           Control.Applicative            ((<|>))
 import           Control.DeepSeq                (NFData, rnf)
 import           Control.Monad                  (guard, liftM2, (<=<))
-import           Data.Aeson                     (FromJSON, ToJSON, Value (String),
-                                                 parseJSON, toJSON, withText)
+import           Data.Aeson                     (FromJSON, ToJSON,
+                                                 Value (String), parseJSON,
+                                                 toJSON, withText)
 import           Data.ByteString                (ByteString)
 import qualified Data.ByteString                as BS (head, singleton)
 import           Data.Foldable                  (foldrM)
 import           Data.List                      (sortBy)
 import           Data.Serialize                 (decode, encode)
 import           Data.String.Conversions        (cs)
-import           Network.Haskoin.Crypto.Base58
-import           Network.Haskoin.Crypto.Hash
-import           Network.Haskoin.Crypto.Keys
-import           Network.Haskoin.Script.SigHash
-import           Network.Haskoin.Script.Types
-import           Network.Haskoin.Util
+import           Network.Haskoin.Crypto.Base58  (Address (..))
+import           Network.Haskoin.Crypto.Hash    (Hash256 (..), hash160, hash256)
+import           Network.Haskoin.Crypto.Keys    (PubKey, pubKeyAddr)
+import           Network.Haskoin.Script.SigHash (TxSignature, decodeSig,
+                                                 encodeSig)
+import           Network.Haskoin.Script.Types   (Script (..), ScriptOp (..),
+                                                 isPushOp, opPushData)
+import           Network.Haskoin.Util           (decodeHex, decodeToMaybe,
+                                                 eitherToMaybe, encodeHex,
+                                                 maybeToEither)
 
 -- | Data type describing standard transaction output scripts. Output scripts
 -- provide the conditions that must be fulfilled for someone to spend the
@@ -200,16 +205,16 @@ intToScriptOp i
     | otherwise = err
   where
     op = decode $ BS.singleton $ fromIntegral $ i + 0x50
-    err = error $ "intToScriptOp: Invalid integer " ++ (show i)
+    err = error $ "intToScriptOp: Invalid integer " ++ show i
 
 -- | Decode 'ScriptOp' [OP_1 .. OP_16] to integers [1 .. 16]. This functions
 -- fails for other values of 'ScriptOp'
 scriptOpToInt :: ScriptOp -> Either String Int
 scriptOpToInt s
     | res `elem` [1 .. 16] = return res
-    | otherwise = Left $ "scriptOpToInt: invalid opcode " ++ (show s)
+    | otherwise = Left $ "scriptOpToInt: invalid opcode " ++ show s
   where
-    res = (fromIntegral $ BS.head $ encode s) - 0x50
+    res = fromIntegral (BS.head $ encode s) - 0x50
 
 -- | Get the address of a `ScriptOutput`
 outputAddress :: ScriptOutput -> Either String Address
@@ -311,7 +316,7 @@ encodeInput s =
         RegularInput ri -> encodeSimpleInput ri
         ScriptHashInput i o ->
             Script $
-            (scriptOps $ encodeSimpleInput i) ++ [opPushData $ encodeOutputBS o]
+            scriptOps (encodeSimpleInput i) ++ [opPushData $ encodeOutputBS o]
 
 -- | Similar to 'encodeInput' but encodes to a ByteString
 encodeInputBS :: ScriptInput -> ByteString
@@ -322,7 +327,7 @@ encodeInputBS = encode . encodeInput
 decodeInput :: Script -> Either String ScriptInput
 decodeInput s@(Script ops) = maybeToEither errMsg $ matchSimpleInput <|> matchPayScriptHash
   where
-    matchSimpleInput = RegularInput <$> (eitherToMaybe $ decodeSimpleInput s)
+    matchSimpleInput = RegularInput <$> eitherToMaybe (decodeSimpleInput s)
     matchPayScriptHash =
         case splitAt (length (scriptOps s) - 1) ops of
             (is, [OP_PUSHDATA bs _]) -> do

@@ -1,23 +1,23 @@
 module Network.Haskoin.Node.Types
-  ( Addr(..)
-  , NetworkAddressTime
-  , Alert(..)
-  , GetData(..)
-  , Inv(..)
-  , InvVector(..)
-  , InvType(..)
-  , NetworkAddress(..)
-  , NotFound(..)
-  , Ping(..)
-  , Pong(..)
-  , Reject(..)
-  , RejectCode(..)
-  , reject
-  , VarInt(..)
-  , VarString(..)
-  , Version(..)
-  , MessageCommand(..)
-  ) where
+       ( Addr(..)
+       , NetworkAddressTime
+       , Alert(..)
+       , GetData(..)
+       , Inv(..)
+       , InvVector(..)
+       , InvType(..)
+       , NetworkAddress(..)
+       , NotFound(..)
+       , Ping(..)
+       , Pong(..)
+       , Reject(..)
+       , RejectCode(..)
+       , reject
+       , VarInt(..)
+       , VarString(..)
+       , Version(..)
+       , MessageCommand(..)
+       ) where
 
 import           Control.DeepSeq             (NFData, rnf)
 import           Control.Monad               (forM_, liftM2, replicateM, unless)
@@ -34,9 +34,10 @@ import           Data.Serialize.Put          (Put, putByteString, putWord16be,
                                               putWord32le, putWord64le, putWord8)
 import           Data.String.Conversions     (cs)
 import           Data.Word                   (Word32, Word64)
-import           Network.Socket              (SockAddr (SockAddrInet, SockAddrInet6))
+import           Network.Socket              (SockAddr
+                                              (SockAddrInet, SockAddrInet6))
 
-import           Network.Haskoin.Crypto.Hash
+import           Network.Haskoin.Crypto.Hash (Hash256)
 
 -- | Network address with a timestamp
 type NetworkAddressTime = (Word32, NetworkAddress)
@@ -179,7 +180,8 @@ instance NFData NetworkAddress where
     rnf NetworkAddress {..} = rnf naServices `seq` naAddress `seq` ()
 
 instance Serialize NetworkAddress where
-    get = NetworkAddress <$> getWord64le <*> getAddrPort
+    get = NetworkAddress <$> getWord64le
+                         <*> getAddrPort
       where
         getAddrPort = do
             a <- getWord32be
@@ -416,12 +418,15 @@ instance NFData Version where
         rnf verNonce `seq` rnf userAgent `seq` rnf startHeight `seq` rnf relay
 
 instance Serialize Version where
-    get =
-        Version <$> getWord32le <*> getWord64le <*> getWord64le <*> get <*> get <*>
-        getWord64le <*>
-        get <*>
-        getWord32le <*>
-        (go =<< isEmpty)
+    get = Version <$> getWord32le
+                  <*> getWord64le
+                  <*> getWord64le
+                  <*> get
+                  <*> get
+                  <*> getWord64le
+                  <*> get
+                  <*> getWord32le
+                  <*> (go =<< isEmpty)
       where
         go True  = return True
         go False = getBool

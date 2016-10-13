@@ -1,18 +1,23 @@
 -- | Mnemonic keys (BIP-39). Only the English dictionary in the BIP is
 -- supported.
 module Network.Haskoin.Crypto.Mnemonic
-  ( Entropy
-  , Mnemonic
-  , Passphrase
-  , Seed
-   -- * Entropy encoding and decoding
-  , toMnemonic
-  , fromMnemonic
-   -- * Generating 512-bit seeds
-  , mnemonicToSeed
-   -- * Helper functions
-  , getBits
-  ) where
+       (
+         -- * Data types
+         Entropy
+       , Mnemonic
+       , Passphrase
+       , Seed
+
+         -- * Entropy encoding and decoding
+       , toMnemonic
+       , fromMnemonic
+
+         -- * Generating 512-bit seeds
+       , mnemonicToSeed
+
+         -- * Helper functions
+       , getBits
+       ) where
 
 -- * Data types
 import           Control.Monad           (when)
@@ -22,13 +27,13 @@ import           Data.Bits               (shiftL, shiftR, (.&.))
 import           Data.ByteString         (ByteString)
 import qualified Data.ByteString         as BS
 import qualified Data.ByteString.Char8   as C (unwords, words)
-import           Data.List
+import           Data.List               (elemIndices, find, foldl')
 import qualified Data.Map.Strict         as M
-import           Data.Maybe
+import           Data.Maybe              (catMaybes, isJust)
 import           Data.String.Conversions (cs)
 import           Data.Vector             (Vector, (!))
 import qualified Data.Vector             as V
-import           Network.Haskoin.Util
+import           Network.Haskoin.Util    (bsToInteger, integerToBS)
 
 type Entropy = ByteString
 
@@ -112,7 +117,7 @@ getBits b bs
     | otherwise = i `BS.snoc` l
   where
     (q, r) = b `quotRem` 8
-    s = (BS.take (q + 1) bs)
+    s = BS.take (q + 1) bs
     i = BS.init s
     l = BS.last s .&. (0xff `shiftL` (8 - r)) -- zero unneeded bits
 
@@ -149,7 +154,7 @@ bsToIndices bs = reverse . go q $ bsToInteger bs `shiftR` r
   where
     (q, r) = (BS.length bs * 8) `quotRem` 11
     go 0 _ = []
-    go n i = (fromIntegral $ i `mod` 2048) : go (n - 1) (i `shiftR` 11)
+    go n i = fromIntegral (i `mod` 2048) : go (n - 1) (i `shiftR` 11)
 
 wl' :: M.Map ByteString Int
 wl' = V.ifoldr' (\i w m -> M.insert w i m) M.empty wl

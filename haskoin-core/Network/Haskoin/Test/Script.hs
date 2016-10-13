@@ -2,44 +2,57 @@
   Arbitrary types for Network.Haskoin.Script
 -}
 module Network.Haskoin.Test.Script
-  ( ArbitraryScriptOp(..)
-  , ArbitraryScript(..)
-  , ArbitraryIntScriptOp(..)
-  , ArbitraryPushDataType(..)
-  , ArbitraryTxSignature(..)
-  , ArbitrarySigHash(..)
-  , ArbitraryValidSigHash(..)
-  , ArbitraryMSParam(..)
-  , ArbitraryScriptOutput(..)
-  , ArbitrarySimpleOutput(..)
-  , ArbitraryPKOutput(..)
-  , ArbitraryPKHashOutput(..)
-  , ArbitraryMSOutput(..)
-  , ArbitraryMSCOutput(..)
-  , ArbitrarySHOutput(..)
-  , ArbitraryScriptInput(..)
-  , ArbitrarySimpleInput(..)
-  , ArbitraryPKInput(..)
-  , ArbitraryPKHashInput(..)
-  , ArbitraryPKHashCInput(..)
-  , ArbitraryMSInput(..)
-  , ArbitrarySHInput(..)
-  , ArbitraryMulSigSHCInput(..)
-  ) where
+       ( ArbitraryScriptOp(..)
+       , ArbitraryScript(..)
+       , ArbitraryIntScriptOp(..)
+       , ArbitraryPushDataType(..)
+       , ArbitraryTxSignature(..)
+       , ArbitrarySigHash(..)
+       , ArbitraryValidSigHash(..)
+       , ArbitraryMSParam(..)
+       , ArbitraryScriptOutput(..)
+       , ArbitrarySimpleOutput(..)
+       , ArbitraryPKOutput(..)
+       , ArbitraryPKHashOutput(..)
+       , ArbitraryMSOutput(..)
+       , ArbitraryMSCOutput(..)
+       , ArbitrarySHOutput(..)
+       , ArbitraryScriptInput(..)
+       , ArbitrarySimpleInput(..)
+       , ArbitraryPKInput(..)
+       , ArbitraryPKHashInput(..)
+       , ArbitraryPKHashCInput(..)
+       , ArbitraryMSInput(..)
+       , ArbitrarySHInput(..)
+       , ArbitraryMulSigSHCInput(..)
+       ) where
 
-import           Test.QuickCheck                   (Arbitrary, arbitrary, choose,
-                                                    elements, oneof, vectorOf)
+import           Test.QuickCheck                   (Arbitrary, arbitrary,
+                                                    choose, elements, oneof,
+                                                    vectorOf)
 
 import           Data.Bits                         (testBit)
 
-import           Network.Haskoin.Crypto
-import           Network.Haskoin.Script
-import           Network.Haskoin.Test.Crypto
-import           Network.Haskoin.Transaction.Types
+import           Network.Haskoin.Crypto            (PrvKey, toPubKeyG)
+import           Network.Haskoin.Script            (PushDataType (..),
+                                                    Script (..),
+                                                    ScriptInput (..),
+                                                    ScriptOp (..),
+                                                    ScriptOutput (..),
+                                                    SigHash (..),
+                                                    SimpleInput (..),
+                                                    TxSignature (..),
+                                                    opPushData)
+import           Network.Haskoin.Test.Crypto       (ArbitraryNotNullByteString (..),
+                                                    ArbitraryPubKey (..),
+                                                    ArbitraryPubKeyAddress (..),
+                                                    ArbitraryPubKeyC (..),
+                                                    ArbitraryScriptAddress (..),
+                                                    ArbitrarySignature (..))
+import           Network.Haskoin.Transaction.Types (TxHash (..))
 
--- | Arbitrary Script with random script ops
-newtype ArbitraryScript =
-    ArbitraryScript Script
+-- | Arbitrary Script with random script opsx
+newtype ArbitraryScript = ArbitraryScript Script
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryScript where

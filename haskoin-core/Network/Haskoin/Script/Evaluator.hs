@@ -8,33 +8,36 @@ EvalScript and <https://en.bitcoin.it/wiki/Script>
 
 -}
 module Network.Haskoin.Script.Evaluator
-  ( verifySpend
-  , evalScript
-  , SigCheck
-  , Flag
-  , ProgramData
-  , Stack
-  , encodeInt
-  , decodeInt
-  , encodeBool
-  , decodeBool
-  , runStack
-  , checkStack
-  , dumpScript
-  , dumpStack
-  , execScript
-  ) where
+       (
+       -- * Script evaluation
+         verifySpend
+       , evalScript
+       , SigCheck
+       , Flag
+       -- * Evaluation data types
+       , ProgramData
+       , Stack
+       -- * Helper functions
+       , encodeInt
+       , decodeInt
+       , encodeBool
+       , decodeBool
+       , runStack
+       , checkStack
+       , dumpScript
+       , dumpStack
+       , execScript
+       ) where
 
--- * Script evaluation
--- * Evaluation data types
--- * Helper functions
-import           Control.Monad                     (when)
-import           Control.Monad.Except
-import           Control.Monad.Identity
-import           Control.Monad.Reader
-import           Control.Monad.State
-import           Data.Bits                         (clearBit, setBit, shiftL, shiftR,
-                                                    testBit, (.&.))
+import           Control.Monad                     (unless, void, when)
+import           Control.Monad.Except              (ExceptT, runExceptT,
+                                                    throwError)
+import           Control.Monad.Identity            (Identity (..))
+import           Control.Monad.Reader              (ReaderT (..), ask)
+import           Control.Monad.State               (StateT, evalStateT, get,
+                                                    join, lift, modify, put)
+import           Data.Bits                         (clearBit, setBit, shiftL,
+                                                    shiftR, testBit, (.&.))
 import           Data.ByteString                   (ByteString)
 import qualified Data.ByteString                   as BS
 import           Data.Either                       (rights)
@@ -43,11 +46,18 @@ import           Data.Maybe                        (isJust, mapMaybe)
 import           Data.Serialize                    (decode, encode)
 import           Data.String.Conversions           (cs)
 import           Data.Word                         (Word64, Word8)
-import           Network.Haskoin.Crypto
-import           Network.Haskoin.Script.SigHash
-import           Network.Haskoin.Script.Types
-import           Network.Haskoin.Transaction.Types
-import           Network.Haskoin.Util
+import           Network.Haskoin.Crypto            (Hash160 (..), Hash256 (..),
+                                                    PubKey, doubleHash256,
+                                                    hash160, hash256, sha1,
+                                                    verifySig)
+import           Network.Haskoin.Script.SigHash    (TxSignature, decodeSig,
+                                                    sigHashType, txSigHash,
+                                                    txSignature)
+import           Network.Haskoin.Script.Types      (PushDataType (..),
+                                                    Script (..), ScriptOp (..),
+                                                    opPushData, scriptOps)
+import           Network.Haskoin.Transaction.Types (Tx, scriptInput, txIn)
+import           Network.Haskoin.Util              (decodeToMaybe, encodeHex)
 
 maxScriptSize :: Int
 maxScriptSize = 10000
@@ -127,7 +137,7 @@ dumpStack s = dumpList $ map (encodeHex . BS.pack) s
 
 -- TODO: Test
 instance Show ProgramData where
-    show p = "stack: " ++ (cs $ dumpStack $ stack p)
+    show p = "stack: " ++ cs (dumpStack $ stack p)
 
 type ProgramState = ExceptT EvalError Identity
 
@@ -542,7 +552,7 @@ eval OP_2OVER = tStack4 $ \a b c d -> [c, d, a, b, c, d]
 eval OP_2ROT = tStack6 $ \a b c d e f -> [e, f, a, b, c, d]
 eval OP_2SWAP = tStack4 $ \a b c d -> [c, d, a, b]
 -- Splice
-eval OP_SIZE = (fromIntegral . length) . head <$> withStack >>= pushInt
+eval OP_SIZE = fromIntegral . length . head <$> withStack >>= pushInt
 -- Bitwise Logic
 eval OP_EQUAL = tStack2 $ \a b -> [encodeBool (a == b)]
 eval OP_EQUALVERIFY = eval OP_EQUAL >> eval OP_VERIFY
@@ -621,7 +631,7 @@ minimalPushEnforcer :: ScriptOp -> StackOperation ()
 minimalPushEnforcer op = do
     flgs <- ask
     when (MINIMALDATA `elem` flgs && not (checkMinimalPush op)) $
-        programError $ "Non-minimal data: " ++ (show op)
+        programError $ "Non-minimal data: " ++ show op
 
 checkMinimalPush :: ScriptOp -> Bool -- Putting in a maybe monad to avoid elif chain
 checkMinimalPush (OP_PUSHDATA payload optype) =
@@ -653,7 +663,7 @@ minimalStackValEnforcer = do
     when
         ((MINIMALDATA `elem` flgs || null topStack) &&
          not (checkMinimalNumRep topStack)) $
-        programError $ "Non-minimal stack value: " ++ (show topStack)
+        programError $ "Non-minimal stack value: " ++ show topStack
 
 -- | Checks if a stack value is the minimal numeric representation of
 -- the integer to which it decoes.  Based on CScriptNum from Bitcoin
@@ -673,9 +683,9 @@ checkMinimalNumRep s =
 nullDummyEnforcer :: StackOperation ()
 nullDummyEnforcer = do
     flgs <- ask
-    topStack <- (getStack >>= headOrError)
+    topStack <- getStack >>= headOrError
     when ((NULLDUMMY `elem` flgs) && (not . null $ topStack)) $
-        programError $ "Non-null dummy stack in multi-sig"
+        programError "Non-null dummy stack in multi-sig"
   where
     headOrError s =
         if null s

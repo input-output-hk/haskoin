@@ -1,47 +1,57 @@
 module Network.Haskoin.Transaction.Builder
-  ( Coin(..)
-  , buildTx
-  , buildAddrTx
-  , SigInput(..)
-  , signTx
-  , signInput
-  , mergeTxs
-  , verifyStdTx
-  , verifyStdInput
-  , verifyTx
-  , guessTxSize
-  , chooseCoins
-  , chooseCoinsSink
-  , chooseMSCoins
-  , chooseMSCoinsSink
-  , getFee
-  , getMSFee
-  , buildInput
-  ) where
+       ( Coin(..)
+       , buildTx
+       , buildAddrTx
+       , SigInput(..)
+       , signTx
+       , signInput
+       , mergeTxs
+       , verifyStdTx
+       , verifyStdInput
+       , verifyTx
+       , guessTxSize
+       , chooseCoins
+       , chooseCoinsSink
+       , chooseMSCoins
+       , chooseMSCoinsSink
+       , getFee
+       , getMSFee
+
+       , buildInput
+       ) where
 
 import           Control.Arrow                     (first)
 import           Control.DeepSeq                   (NFData, rnf)
 import           Control.Monad                     (foldM, mzero, unless)
 import           Control.Monad.Identity            (runIdentity)
-import           Data.Aeson                        (FromJSON, ToJSON, Value (Object),
-                                                    object, parseJSON, toJSON, (.:),
+import           Data.Aeson                        (FromJSON, ToJSON,
+                                                    Value (Object), object,
+                                                    parseJSON, toJSON, (.:),
                                                     (.:?), (.=))
 import           Data.ByteString                   (ByteString)
-import qualified Data.ByteString                   as BS (empty, length, null, replicate)
+import qualified Data.ByteString                   as BS (empty, length, null,
+                                                          replicate)
 import           Data.Conduit                      (Sink, await, ($$))
 import           Data.Conduit.List                 (sourceList)
 import           Data.List                         (find, nub)
-import           Data.Maybe                        (catMaybes, fromJust, fromMaybe,
-                                                    isJust, maybeToList)
+import           Data.Maybe                        (catMaybes, fromJust,
+                                                    fromMaybe, isJust,
+                                                    maybeToList)
 import           Data.Serialize                    (encode)
 import           Data.String.Conversions           (cs)
 import           Data.Word                         (Word64)
-import           Network.Haskoin.Crypto
 import           Network.Haskoin.Crypto.Hash       (doubleHash256)
-import           Network.Haskoin.Node.Types
-import           Network.Haskoin.Script
-import           Network.Haskoin.Transaction.Types
-import           Network.Haskoin.Util
+import           Network.Haskoin.Crypto            (Address (..), PrvKey,
+                                                    PubKey, base58ToAddr,
+                                                    derivePubKey, pubKeyAddr,
+                                                    signMsg, verifySig)
+import           Network.Haskoin.Node.Types        (VarInt (..))
+import qualified Network.Haskoin.Script            as S
+import           Network.Haskoin.Transaction.Types (OutPoint, Tx (..),
+                                                    TxHash (..), TxIn (..),
+                                                    TxOut (..), createTx)
+import           Network.Haskoin.Util              (matchTemplate,
+                                                    maybeToEither, updateIndex)
 
 -- | Any type can be used as a Coin if it can provide a value in Satoshi.
 -- The value is used in coin selection algorithms.
@@ -135,7 +145,7 @@ greedyAddSink target fee continue = go [] 0 [] 0
                  Just coin -> do
                      let val = coinValue coin
                      -- We have reached the goal using this coin
-                     if val + aTot >= (goal $ length acc + 1)
+                     if val + aTot >= goal (length acc + 1)
                         -- If we want to continue searching for better solutions
                          then if continue
                                  -- This solution is the first one or
@@ -152,13 +162,13 @@ greedyAddSink target fee continue = go [] 0 [] 0
                                            else return $
                                                 Just
                                                     ( ps
-                                                    , pTot - (goal $ length ps))
+                                                    , pTot - goal (length ps))
                                        -- Otherwise, return this solution
                                   else return $
                                        Just
                                            ( coin : acc
                                            , val + aTot -
-                                             (goal $ length acc + 1))
+                                             goal (length acc + 1))
                               -- We have not yet reached the goal. Add the coin to the
                               -- accumulator
                          else go (coin : acc) (val + aTot) ps pTot
@@ -169,7 +179,7 @@ greedyAddSink target fee continue = go [] 0 [] 0
                         -- If no solution was found, return Nothing
                          then Nothing
                               -- If we have a solution, return it
-                         else Just (ps, pTot - (goal $ length ps))
+                         else Just (ps, pTot - goal (length ps))
 
 -- The goal is the value we must reach (including the fee) for a certain
 -- amount of selected coins.
@@ -195,9 +205,9 @@ guessTxSize
     -> Int -- ^ Upper bound on the transaction size.
 guessTxSize pki msi pkout msout = 8 + inpLen + inp + outLen + out
   where
-    inpLen = BS.length $ encode $ VarInt $ fromIntegral $ (length msi) + pki
+    inpLen = BS.length $ encode $ VarInt $ fromIntegral $ length msi + pki
     outLen = BS.length $ encode $ VarInt $ fromIntegral $ pkout + msout
-    inp = pki * 148 + (sum $ map guessMSSize msi)
+    inp = pki * 148 + sum (map guessMSSize msi)
     -- (20: hash160) + (5: opcodes) +
     -- (1: script len) + (8: Word64)
     out =
@@ -210,9 +220,9 @@ guessTxSize pki msi pkout msout = 8 + inpLen + inp + outLen + out
 guessMSSize :: (Int, Int) -> Int
 guessMSSize (m, n)
             -- OutPoint (36) + Sequence (4) + Script
- = 40 + (BS.length $ encode $ VarInt $ fromIntegral scp) + scp
+ = 40 + BS.length (encode $ VarInt $ fromIntegral scp) + scp
   where
-    rdm = BS.length $ encode $ opPushData $ BS.replicate (n * 34 + 3) 0
+    rdm = BS.length $ encode $ S.opPushData $ BS.replicate (n * 34 + 3) 0
     -- Redeem + m*sig + OP_0
     scp = rdm + m * 73 + 1
 
@@ -225,18 +235,18 @@ buildAddrTx xs ys = buildTx xs =<< mapM f ys
   where
     f (s, v) =
         case base58ToAddr s of
-            Just a@(PubKeyAddress _) -> return (PayPKHash a, v)
-            Just a@(ScriptAddress _) -> return (PayScriptHash a, v)
+            Just a@(PubKeyAddress _) -> return (S.PayPKHash a, v)
+            Just a@(ScriptAddress _) -> return (S.PayScriptHash a, v)
             _                        -> Left $ "buildAddrTx: Invalid address " ++ cs s
 
 -- | Build a transaction by providing a list of outpoints as inputs
 -- and a list of 'ScriptOutput' and amounts as outputs.
-buildTx :: [OutPoint] -> [(ScriptOutput, Word64)] -> Either String Tx
+buildTx :: [OutPoint] -> [(S.ScriptOutput, Word64)] -> Either String Tx
 buildTx xs ys = mapM fo ys >>= \os -> return $ createTx 1 (map fi xs) os 0
   where
     fi outPoint = TxIn outPoint BS.empty maxBound
     fo (o, v)
-        | v <= 2100000000000000 = return $ TxOut v $ encodeOutputBS o
+        | v <= 2100000000000000 = return $ TxOut v $ S.encodeOutputBS o
         | otherwise = Left $ "buildTx: Invalid amount " ++ show v
 
 -- | Data type used to specify the signing parameters of a transaction input.
@@ -244,10 +254,10 @@ buildTx xs ys = mapM fo ys >>= \os -> return $ createTx 1 (map fi xs) os 0
 -- required. When signing a pay to script hash output, an additional redeem
 -- script is required.
 data SigInput = SigInput
-    { sigDataOut    :: !ScriptOutput -- ^ Output script to spend.
+    { sigDataOut    :: !S.ScriptOutput -- ^ Output script to spend.
     , sigDataOP     :: !OutPoint -- ^ Spending tranasction OutPoint
-    , sigDataSH     :: !SigHash -- ^ Signature type.
-    , sigDataRedeem :: !(Maybe RedeemScript) -- ^ Redeem script
+    , sigDataSH     :: !S.SigHash -- ^ Signature type.
+    , sigDataRedeem :: !(Maybe S.RedeemScript) -- ^ Redeem script
     } deriving (Eq, Read, Show)
 
 instance NFData SigInput where
@@ -289,16 +299,16 @@ signTx otx sigis allKeys
 -- | Sign a single input in a transaction deterministically (RFC-6979).
 signInput :: Tx -> Int -> SigInput -> PrvKey -> Either String Tx
 signInput tx i (SigInput so _ sh rdmM) key = do
-    let sig = TxSignature (signMsg msg key) sh
+    let sig = S.TxSignature (signMsg msg key) sh
     si <- buildInput tx i so rdmM sig $ derivePubKey key
     let ins = updateIndex i (txIn tx) (f si)
     return $ createTx (txVersion tx) ins (txOut tx) (txLockTime tx)
   where
     f si x =
         x
-        { scriptInput = encodeInputBS si
+        { scriptInput = S.encodeInputBS si
         }
-    msg = txSigHash tx (encodeOutput $ fromMaybe so rdmM) i sh
+    msg = S.txSigHash tx (S.encodeOutput $ fromMaybe so rdmM) i sh
 
 -- Order the SigInput with respect to the transaction inputs. This allow the
 -- users to provide the SigInput in any order. Users can also provide only a
@@ -313,19 +323,19 @@ findSigInput si ti =
 
 -- Find from the list of private keys which one is required to sign the
 -- provided ScriptOutput.
-sigKeys :: ScriptOutput
-        -> (Maybe RedeemScript)
+sigKeys :: S.ScriptOutput
+        -> (Maybe S.RedeemScript)
         -> [PrvKey]
         -> Either String [PrvKey]
 sigKeys so rdmM keys =
     case (so, rdmM) of
-        (PayPK p, Nothing) ->
+        (S.PayPK p, Nothing) ->
             return $ map fst $ maybeToList $ find ((== p) . snd) zipKeys
-        (PayPKHash a, Nothing) ->
+        (S.PayPKHash a, Nothing) ->
             return $ map fst $ maybeToList $ find ((== a) . pubKeyAddr . snd) zipKeys
-        (PayMulSig ps r, Nothing) ->
+        (S.PayMulSig ps r, Nothing) ->
             return $ map fst $ take r $ filter ((`elem` ps) . snd) zipKeys
-        (PayScriptHash _, Just rdm) -> sigKeys rdm Nothing keys
+        (S.PayScriptHash _, Just rdm) -> sigKeys rdm Nothing keys
         _ -> Left "sigKeys: Could not decode output script"
   where
     zipKeys = zip keys (map derivePubKey keys)
@@ -334,36 +344,36 @@ sigKeys so rdmM keys =
 buildInput
     :: Tx
     -> Int
-    -> ScriptOutput
-    -> (Maybe RedeemScript)
-    -> TxSignature
+    -> S.ScriptOutput
+    -> Maybe S.RedeemScript
+    -> S.TxSignature
     -> PubKey
-    -> Either String ScriptInput
+    -> Either String S.ScriptInput
 buildInput tx i so rdmM sig pub =
     case (so, rdmM) of
-        (PayPK _, Nothing) -> return $ RegularInput $ SpendPK sig
-        (PayPKHash _, Nothing) -> return $ RegularInput $ SpendPKHash sig pub
-        (PayMulSig msPubs r, Nothing) -> do
+        (S.PayPK _, Nothing) -> return $ S.RegularInput $ S.SpendPK sig
+        (S.PayPKHash _, Nothing) -> return $ S.RegularInput $ S.SpendPKHash sig pub
+        (S.PayMulSig msPubs r, Nothing) -> do
             let mSigs = take r $ catMaybes $ matchTemplate allSigs msPubs f
-            return $ RegularInput $ SpendMulSig mSigs
-        (PayScriptHash _, Just rdm) -> do
+            return $ S.RegularInput $ S.SpendMulSig mSigs
+        (S.PayScriptHash _, Just rdm) -> do
             inp <- buildInput tx i rdm Nothing sig pub
-            return $ ScriptHashInput (getRegularInput inp) rdm
+            return $ S.ScriptHashInput (S.getRegularInput inp) rdm
         _ -> Left "buildInput: Invalid output/redeem script combination"
   where
     scp = scriptInput $ txIn tx !! i
     allSigs =
         nub $
         sig :
-        case decodeInputBS scp of
-            Right (ScriptHashInput (SpendMulSig xs) _) -> xs
-            Right (RegularInput (SpendMulSig xs))      -> xs
+        case S.decodeInputBS scp of
+            Right (S.ScriptHashInput (S.SpendMulSig xs) _) -> xs
+            Right (S.RegularInput (S.SpendMulSig xs))      -> xs
             _                                          -> []
-    out = encodeOutput so
-    f (TxSignature x sh) = verifySig (txSigHash tx out i sh) x
+    out = S.encodeOutput so
+    f (S.TxSignature x sh) = verifySig (S.txSigHash tx out i sh) x
 
 {- Merge multisig transactions -}
-mergeTxs :: [Tx] -> [(ScriptOutput, OutPoint)] -> Either String Tx
+mergeTxs :: [Tx] -> [(S.ScriptOutput, OutPoint)] -> Either String Tx
 mergeTxs txs os
     | null txs = error "Transaction list is empty"
     | length (nub emptyTxs) /= 1 = Left "Transactions do not match"
@@ -385,7 +395,7 @@ mergeTxs txs os
     clearInput tx (_, i) =
         createTx (txVersion tx) (ins (txIn tx) i) (txOut tx) (txLockTime tx)
 
-mergeTxInput :: [Tx] -> Tx -> (ScriptOutput, Int) -> Either String Tx
+mergeTxInput :: [Tx] -> Tx -> (S.ScriptOutput, Int) -> Either String Tx
 mergeTxInput txs tx (so, i)
                     -- Ignore transactions with empty inputs
  = do
@@ -393,7 +403,7 @@ mergeTxInput txs tx (so, i)
     sigRes <- mapM extractSigs $ filter (not . BS.null) ins
     let rdm = snd $ head sigRes
     unless (all (== rdm) $ map snd sigRes) $ Left "Redeem scripts do not match"
-    si <- encodeInputBS <$> go (nub $ concatMap fst sigRes) so rdm
+    si <- S.encodeInputBS <$> go (nub $ concatMap fst sigRes) so rdm
     let ins' =
             updateIndex
                 i
@@ -406,38 +416,38 @@ mergeTxInput txs tx (so, i)
   where
     go allSigs out rdmM =
         case out of
-            PayMulSig msPubs r ->
+            S.PayMulSig msPubs r ->
                 let sigs =
                         take r $ catMaybes $ matchTemplate allSigs msPubs $ f out
-                in return $ RegularInput $ SpendMulSig sigs
-            PayScriptHash _ ->
+                in return $ S.RegularInput $ S.SpendMulSig sigs
+            S.PayScriptHash _ ->
                 case rdmM of
                     Just rdm -> do
                         si <- go allSigs rdm Nothing
-                        return $ ScriptHashInput (getRegularInput si) rdm
+                        return $ S.ScriptHashInput (S.getRegularInput si) rdm
                     _ -> Left "Invalid output script type"
             _ -> Left "Invalid output script type"
     extractSigs si =
-        case decodeInputBS si of
-            Right (RegularInput (SpendMulSig sigs)) -> Right (sigs, Nothing)
-            Right (ScriptHashInput (SpendMulSig sigs) rdm) ->
+        case S.decodeInputBS si of
+            Right (S.RegularInput (S.SpendMulSig sigs)) -> Right (sigs, Nothing)
+            Right (S.ScriptHashInput (S.SpendMulSig sigs) rdm) ->
                 Right (sigs, Just rdm)
             _ -> Left "Invalid script input type"
-    f out (TxSignature x sh) =
-        verifySig (txSigHash tx (encodeOutput out) i sh) x
+    f out (S.TxSignature x sh) =
+        verifySig (S.txSigHash tx (S.encodeOutput out) i sh) x
 
 {- Tx verification -}
 -- | Verify structural validaty of a transaction
 verifyTx :: Tx -> Bool
 verifyTx Tx {..} =
-    (not $ (null txIn || null txOut)) &&
+    (not (null txIn || null txOut)) &&
     (txVersion >= 0 && txLockTime >= 0) &&
     length txIn + length txOut <= 50 && -- magic number, we can change it later
     (TxHash $ doubleHash256 $ encode $ createTx txVersion txIn txOut txLockTime) ==
     txHash
 
 -- | Verify if a transaction is valid and all of its inputs are standard.
-verifyStdTx :: Tx -> [(ScriptOutput, OutPoint)] -> Bool
+verifyStdTx :: Tx -> [(S.ScriptOutput, OutPoint)] -> Bool
 verifyStdTx tx xs = all go $ zip (matchTemplate xs (txIn tx) f) [0 ..]
   where
     f (_, o) txin = o == prevOutput txin
@@ -445,34 +455,34 @@ verifyStdTx tx xs = all go $ zip (matchTemplate xs (txIn tx) f) [0 ..]
     go _                 = False
 
 -- | Verify if a transaction input is valid and standard.
-verifyStdInput :: Tx -> Int -> ScriptOutput -> Bool
+verifyStdInput :: Tx -> Int -> S.ScriptOutput -> Bool
 verifyStdInput tx i = go (scriptInput $ txIn tx !! i)
   where
     go inp so =
-        case decodeInputBS inp of
-            Right (RegularInput (SpendPK (TxSignature sig sh))) ->
-                let pub = getOutputPubKey so
-                in verifySig (txSigHash tx out i sh) sig pub
-            Right (RegularInput (SpendPKHash (TxSignature sig sh) pub)) ->
-                let a = getOutputAddress so
+        case S.decodeInputBS inp of
+            Right (S.RegularInput (S.SpendPK (S.TxSignature sig sh))) ->
+                let pub = S.getOutputPubKey so
+                in verifySig (S.txSigHash tx out i sh) sig pub
+            Right (S.RegularInput (S.SpendPKHash (S.TxSignature sig sh) pub)) ->
+                let a = S.getOutputAddress so
                 in pubKeyAddr pub == a &&
-                   verifySig (txSigHash tx out i sh) sig pub
-            Right (RegularInput (SpendMulSig sigs)) ->
-                let pubs = getOutputMulSigKeys so
-                    r = getOutputMulSigRequired so
+                   verifySig (S.txSigHash tx out i sh) sig pub
+            Right (S.RegularInput (S.SpendMulSig sigs)) ->
+                let pubs = S.getOutputMulSigKeys so
+                    r = S.getOutputMulSigRequired so
                 in countMulSig tx out i pubs sigs == r
-            Right (ScriptHashInput si rdm) ->
-                scriptAddr rdm == getOutputAddress so &&
-                go (encodeInputBS $ RegularInput si) rdm
+            Right (S.ScriptHashInput si rdm) ->
+                S.scriptAddr rdm == S.getOutputAddress so &&
+                go (S.encodeInputBS $ S.RegularInput si) rdm
             _ -> False
       where
-        out = encodeOutput so
+        out = S.encodeOutput so
 
 -- Count the number of valid signatures
-countMulSig :: Tx -> Script -> Int -> [PubKey] -> [TxSignature] -> Int
+countMulSig :: Tx -> S.Script -> Int -> [PubKey] -> [S.TxSignature] -> Int
 countMulSig _ _ _ [] _ = 0
 countMulSig _ _ _ _ [] = 0
-countMulSig tx out i (pub:pubs) sigs@(TxSignature sig sh:rest)
-    | verifySig (txSigHash tx out i sh) sig pub =
+countMulSig tx out i (pub:pubs) sigs@(S.TxSignature sig sh:rest)
+    | verifySig (S.txSigHash tx out i sh) sig pub =
         1 + countMulSig tx out i pubs rest
     | otherwise = countMulSig tx out i pubs sigs

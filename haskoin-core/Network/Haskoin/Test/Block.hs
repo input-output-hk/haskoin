@@ -2,24 +2,28 @@
   Arbitrary types for Network.Haskoin.Block
 -}
 module Network.Haskoin.Test.Block
-  ( ArbitraryBlock(..)
-  , ArbitraryBlockHeader(..)
-  , ArbitraryBlockHash(..)
-  , ArbitraryGetBlocks(..)
-  , ArbitraryGetHeaders(..)
-  , ArbitraryHeaders(..)
-  , ArbitraryMerkleBlock(..)
-  ) where
+       ( ArbitraryBlock(..)
+       , ArbitraryBlockHeader(..)
+       , ArbitraryBlockHash(..)
+       , ArbitraryGetBlocks(..)
+       , ArbitraryGetHeaders(..)
+       , ArbitraryHeaders(..)
+       , ArbitraryMerkleBlock(..)
+       ) where
 
-import           Test.QuickCheck                  (Arbitrary, arbitrary, choose, listOf1,
-                                                   vectorOf)
+import           Test.QuickCheck                  (Arbitrary, arbitrary, choose,
+                                                   listOf1, vectorOf)
 
-import           Network.Haskoin.Test.Crypto
-import           Network.Haskoin.Test.Node
-import           Network.Haskoin.Test.Transaction
+import           Network.Haskoin.Test.Crypto      (ArbitraryHash256 (..))
+import           Network.Haskoin.Test.Node        (ArbitraryVarInt (..))
+import           Network.Haskoin.Test.Transaction (ArbitraryTx (..))
 
-import           Network.Haskoin.Block.Merkle
-import           Network.Haskoin.Block.Types
+import           Network.Haskoin.Block.Merkle     (MerkleBlock (..))
+import           Network.Haskoin.Block.Types      (Block (..), BlockHash (..),
+                                                   BlockHeader, GetBlocks (..),
+                                                   GetHeaders (..),
+                                                   Headers (..),
+                                                   createBlockHeader)
 
 -- | Arbitrary Block
 newtype ArbitraryBlock =

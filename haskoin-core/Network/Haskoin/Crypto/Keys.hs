@@ -1,61 +1,62 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module Network.Haskoin.Crypto.Keys
-  ( PubKeyI(pubKeyCompressed, pubKeyPoint)
-  , PubKey
-  , PubKeyC
-  , PubKeyU
-  , makePubKey
-  , makePubKeyG
-  , makePubKeyC
-  , makePubKeyU
-  , toPubKeyG
-  , eitherPubKey
-  , maybePubKeyC
-  , maybePubKeyU
-  , derivePubKey
-  , pubKeyAddr
-  , tweakPubKeyC
-  , PrvKeyI(prvKeyCompressed, prvKeySecKey)
-  , PrvKey
-  , PrvKeyC
-  , PrvKeyU
-  , makePrvKey
-  , makePrvKeyG
-  , makePrvKeyC
-  , makePrvKeyU
-  , toPrvKeyG
-  , eitherPrvKey
-  , maybePrvKeyC
-  , maybePrvKeyU
-  , encodePrvKey
-  , decodePrvKey
-  , prvKeyPutMonad
-  , prvKeyGetMonad
-  , fromWif
-  , toWif
-  , tweakPrvKeyC
-  ) where
+       ( PubKeyI(pubKeyCompressed, pubKeyPoint)
+       , PubKey, PubKeyC, PubKeyU
+       , makePubKey
+       , makePubKeyG
+       , makePubKeyC
+       , makePubKeyU
+       , toPubKeyG
+       , eitherPubKey
+       , maybePubKeyC
+       , maybePubKeyU
+       , derivePubKey
+       , pubKeyAddr
+       , tweakPubKeyC
+       , PrvKeyI(prvKeyCompressed, prvKeySecKey)
+       , PrvKey, PrvKeyC, PrvKeyU
+       , makePrvKey
+       , makePrvKeyG
+       , makePrvKeyC
+       , makePrvKeyU
+       , toPrvKeyG
+       , eitherPrvKey
+       , maybePrvKeyC
+       , maybePrvKeyU
+       , encodePrvKey
+       , decodePrvKey
+       , prvKeyPutMonad
+       , prvKeyGetMonad
+       , fromWif
+       , toWif
+       , tweakPrvKeyC
+       ) where
 
 import           Control.Applicative           ((<|>))
 import           Control.DeepSeq               (NFData, rnf)
 import           Control.Monad                 (guard, mzero, (<=<))
 import qualified Crypto.Secp256k1              as EC
-import           Data.Aeson                    (FromJSON, ToJSON, Value (String),
-                                                parseJSON, toJSON, withText)
+import           Data.Aeson                    (FromJSON, ToJSON,
+                                                Value (String), parseJSON,
+                                                toJSON, withText)
 import           Data.ByteString               (ByteString)
-import qualified Data.ByteString               as BS (cons, elem, head, init, last,
-                                                      length, pack, snoc, tail)
+import qualified Data.ByteString               as BS (cons, elem, head, init,
+                                                      last, length, pack, snoc,
+                                                      tail)
 import           Data.Maybe                    (fromMaybe)
 import           Data.Serialize                (Serialize, encode, get, put)
 import           Data.Serialize.Get            (Get, getByteString)
 import           Data.Serialize.Put            (Put, putByteString)
 import           Data.String                   (IsString, fromString)
 import           Data.String.Conversions       (cs)
-import           Network.Haskoin.Constants
-import           Network.Haskoin.Crypto.Base58
-import           Network.Haskoin.Crypto.Hash
-import           Network.Haskoin.Util
+import           Network.Haskoin.Constants     (secretPrefix)
+import           Network.Haskoin.Crypto.Base58 (Address (PubKeyAddress),
+                                                decodeBase58Check,
+                                                encodeBase58Check)
+import           Network.Haskoin.Crypto.Hash   (Hash256 (..), hash160, hash256)
+import           Network.Haskoin.Util          (decodeHex, decodeToMaybe,
+                                                encodeHex)
 import           Text.Read                     (lexP, parens, pfail, readPrec)
 import qualified Text.Read                     as Read (Lexeme (Ident, String))
 

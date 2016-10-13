@@ -2,41 +2,56 @@
   Arbitrary types for Network.Haskoin.Transaction
 -}
 module Network.Haskoin.Test.Transaction
-  ( ArbitrarySatoshi(..)
-  , ArbitraryTx(..)
-  , ArbitraryTxHash(..)
-  , ArbitraryTxIn(..)
-  , ArbitraryTxOut(..)
-  , ArbitraryOutPoint(..)
-  , ArbitraryAddrOnlyTx(..)
-  , ArbitraryAddrOnlyTxIn(..)
-  , ArbitraryAddrOnlyTxOut(..)
-  , ArbitrarySigInput(..)
-  , ArbitraryPKSigInput(..)
-  , ArbitraryPKHashSigInput(..)
-  , ArbitraryMSSigInput(..)
-  , ArbitrarySHSigInput(..)
-  , ArbitrarySigningData(..)
-  , ArbitraryPartialTxs(..)
-  ) where
+       ( ArbitrarySatoshi(..)
+       , ArbitraryTx(..)
+       , ArbitraryTxHash(..)
+       , ArbitraryTxIn(..)
+       , ArbitraryTxOut(..)
+       , ArbitraryOutPoint(..)
+       , ArbitraryAddrOnlyTx(..)
+       , ArbitraryAddrOnlyTxIn(..)
+       , ArbitraryAddrOnlyTxOut(..)
+       , ArbitrarySigInput(..)
+       , ArbitraryPKSigInput(..)
+       , ArbitraryPKHashSigInput(..)
+       , ArbitraryMSSigInput(..)
+       , ArbitrarySHSigInput(..)
+       , ArbitrarySigningData(..)
+       , ArbitraryPartialTxs(..)
+       ) where
 
-import           Test.QuickCheck             (Arbitrary, arbitrary, choose, elements,
-                                              oneof, vectorOf)
+import           Test.QuickCheck             (Arbitrary, arbitrary, choose,
+                                              elements, oneof, vectorOf)
 
 import           Control.Monad               (forM)
 
 import qualified Data.ByteString             as BS (empty)
+import           Data.Function               (on)
 import           Data.List                   (nub, nubBy, permutations)
 import           Data.Word                   (Word64)
 
-import           Network.Haskoin.Test.Crypto
-import           Network.Haskoin.Test.Script
+import           Network.Haskoin.Test.Crypto (ArbitraryHash256 (..),
+                                              ArbitraryPrvKey (..),
+                                              ArbitraryPubKey (..))
+import           Network.Haskoin.Test.Script (ArbitraryMSParam (..),
+                                              ArbitraryMulSigSHCInput (..),
+                                              ArbitraryPKHashCInput (..),
+                                              ArbitraryPKHashOutput (..),
+                                              ArbitrarySHOutput (..),
+                                              ArbitraryScriptInput (..),
+                                              ArbitraryScriptOutput (..),
+                                              ArbitraryValidSigHash (..))
 
-import           Network.Haskoin.Constants
-import           Network.Haskoin.Crypto
-import           Network.Haskoin.Script
-import           Network.Haskoin.Transaction
-import           Network.Haskoin.Util
+import           Network.Haskoin.Constants   (maxSatoshi)
+import           Network.Haskoin.Crypto      (PrvKey, derivePubKey, pubKeyAddr)
+import           Network.Haskoin.Script      (ScriptOutput (..), encodeInputBS,
+                                              encodeOutputBS, scriptAddr)
+import           Network.Haskoin.Transaction (Coin, OutPoint (..),
+                                              SigInput (..), Tx (..),
+                                              TxHash (..), TxIn (..),
+                                              TxOut (..), coinValue, createTx,
+                                              signTx)
+import           Network.Haskoin.Util        (fromRight)
 
 newtype ArbitraryTxHash =
     ArbitraryTxHash TxHash
@@ -106,7 +121,7 @@ instance Arbitrary ArbitraryTx where
         no <- choose (0, 5)
         inps <- vectorOf ni $ arbitrary >>= \(ArbitraryTxIn i) -> return i
         outs <- vectorOf no $ arbitrary >>= \(ArbitraryTxOut o) -> return o
-        let uniqueInps = nubBy (\a b -> prevOutput a == prevOutput b) inps
+        let uniqueInps = nubBy ((==) `on` prevOutput) inps
         t <- arbitrary
         return $ ArbitraryTx $ createTx v uniqueInps outs t
 

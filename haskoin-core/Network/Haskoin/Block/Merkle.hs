@@ -1,15 +1,15 @@
 module Network.Haskoin.Block.Merkle
-  ( MerkleBlock(..)
-  , MerkleRoot
-  , FlagBits
-  , PartialMerkleTree
-  , calcTreeHeight
-  , calcTreeWidth
-  , buildMerkleRoot
-  , calcHash
-  , buildPartialMerkle
-  , extractMatches
-  ) where
+       ( MerkleBlock(..)
+       , MerkleRoot
+       , FlagBits
+       , PartialMerkleTree
+       , calcTreeHeight
+       , calcTreeWidth
+       , buildMerkleRoot
+       , calcHash
+       , buildPartialMerkle
+       , extractMatches
+       ) where
 
 import           Control.DeepSeq                   (NFData, rnf)
 import           Control.Monad                     (forM_, replicateM)
@@ -20,11 +20,11 @@ import           Data.Serialize                    (Serialize, encode, get, put)
 import           Data.Serialize.Get                (getWord32le, getWord8)
 import           Data.Serialize.Put                (putWord32le, putWord8)
 import           Data.Word                         (Word32, Word8)
-import           Network.Haskoin.Block.Types
-import           Network.Haskoin.Constants
-import           Network.Haskoin.Crypto.Hash
-import           Network.Haskoin.Node.Types
-import           Network.Haskoin.Transaction.Types
+import           Network.Haskoin.Block.Types       (BlockHeader)
+import           Network.Haskoin.Constants         (maxBlockSize)
+import           Network.Haskoin.Crypto.Hash       (Hash256, doubleHash256)
+import           Network.Haskoin.Node.Types        (VarInt (..))
+import           Network.Haskoin.Transaction.Types (TxHash (..), getTxHash)
 
 type MerkleRoot = Hash256
 
@@ -70,9 +70,9 @@ instance Serialize MerkleBlock where
 
 decodeMerkleFlags :: [Word8] -> [Bool]
 decodeMerkleFlags ws =
-    [ b
-    | p <- [0 .. (length ws) * 8 - 1]
-    , b <- [testBit (ws !! (p `div` 8)) (p `mod` 8)] ]
+    [ b | p <- [0..length ws * 8 - 1]
+    , b <- [testBit (ws !! (p `div` 8)) (p `mod` 8)]
+    ]
 
 encodeMerkleFlags :: [Bool] -> [Word8]
 encodeMerkleFlags bs = map boolsToWord8 $ splitIn 8 bs
@@ -141,23 +141,17 @@ traverseAndBuild height pos txs
   where
     t = map fst txs
     s = pos `shiftL` height
-    e = min (length txs) $ (pos + 1) `shiftL` height
-    match = any snd $ take (e - s) $ drop s txs
-    (lb, lh) = traverseAndBuild (height - 1) (pos * 2) txs
-    (rb, rh)
-        | (pos * 2 + 1) < calcTreeWidth (length txs) (height - 1) =
-            traverseAndBuild (height - 1) (pos * 2 + 1) txs
-        | otherwise = ([], [])
+    e = min (length txs) $ (pos+1) `shiftL` height
+    match = any snd $ take (e-s) $ drop s txs
+    (lb,lh) = traverseAndBuild (height-1) (pos*2) txs
+    (rb,rh) | (pos*2+1) < calcTreeWidth (length txs) (height-1)
+                = traverseAndBuild (height-1) (pos*2+1) txs
+            | otherwise = ([],[])
 
-traverseAndExtract
-    :: Int
-    -> Int
-    -> Int
-    -> FlagBits
-    -> PartialMerkleTree
-    -> Maybe (MerkleRoot, [TxHash], Int, Int)
+traverseAndExtract :: Int -> Int -> Int -> FlagBits -> PartialMerkleTree
+                   -> Maybe (MerkleRoot, [TxHash], Int, Int)
 traverseAndExtract height pos ntx flags hashes
-    | null flags = Nothing
+    | null flags               = Nothing
     | height == 0 || not match = leafResult
     | isNothing leftM = Nothing
     | (pos * 2 + 1) >= calcTreeWidth ntx (height - 1) =
@@ -196,20 +190,20 @@ extractMatches
     -> Int -- ^ Number of transaction at height 0 (leaf nodes).
     -> Either String (MerkleRoot, [TxHash]) -- ^ Merkle root and the list of matching transaction hashes.
 extractMatches flags hashes ntx
-    | ntx == 0 = Left $ "extractMatches: number of transactions can not be 0"
+    | ntx == 0 = Left "extractMatches: number of transactions can not be 0"
     | ntx > maxBlockSize `div` 60 =
-        Left $ "extractMatches: number of transactions excessively high"
+        Left "extractMatches: number of transactions excessively high"
     | length hashes > ntx =
-        Left $
+        Left
         "extractMatches: More hashes provided than the number of transactions"
     | length flags < length hashes =
-        Left $ "extractMatches: At least one bit per node and one bit per hash"
-    | isNothing resM = Left $ "extractMatches: traverseAndExtract failed"
+        Left "extractMatches: At least one bit per node and one bit per hash"
+    | isNothing resM = Left "extractMatches: traverseAndExtract failed"
     | (nBitsUsed + 7) `div` 8 /= (length flags + 7) `div` 8 =
-        Left $ "extractMatches: All bits were not consumed"
+        Left "extractMatches: All bits were not consumed"
     | nHashUsed /= length hashes =
         Left $
-        "extractMatches: All hashes were not consumed: " ++ (show nHashUsed)
+        "extractMatches: All hashes were not consumed: " ++ show nHashUsed
     | otherwise = return (merkRoot, matches)
   where
     resM = traverseAndExtract (calcTreeHeight ntx) 0 ntx flags hashes

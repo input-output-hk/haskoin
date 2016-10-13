@@ -5,40 +5,46 @@
   here: <http://en.bitcoin.it/wiki/Protocol_specification>
 -}
 module Network.Haskoin.Node
-  ( GetData(..)
-  , Inv(..)
-  , InvVector(..)
-  , InvType(..)
-  , NotFound(..)
-   -- * Network types
-  , VarInt(..)
-  , VarString(..)
-  , NetworkAddress(..)
-  , Addr(..)
-  , NetworkAddressTime
-  , Version(..)
-  , Ping(..)
-  , Pong(..)
-  , Alert(..)
-  , Reject(..)
-  , RejectCode(..)
-  , reject
-   -- * Messages
-  , Message(..)
-  , MessageHeader(..)
-  , MessageCommand(..)
-   -- * Bloom filters
-  , BloomFlags(..)
-  , BloomFilter(..)
-  , FilterLoad(..)
-  , FilterAdd(..)
-  , bloomCreate
-  , bloomInsert
-  , bloomContains
-  , isBloomValid
-  , isBloomEmpty
-  , isBloomFull
-  ) where
+       (
+         -- * Requesting data
+         GetData(..)
+       , Inv(..)
+       , InvVector(..)
+       , InvType(..)
+       , NotFound(..)
+
+         -- * Network types
+       , VarInt(..)
+       , VarString(..)
+       , NetworkAddress(..)
+       , Addr(..)
+       , NetworkAddressTime
+       , Version(..)
+       , Ping(..)
+       , Pong(..)
+       , Alert(..)
+       , Reject(..)
+       , RejectCode(..)
+       , reject
+
+         -- * Messages
+       , Message(..)
+       , MessageHeader(..)
+       , MessageCommand(..)
+
+         -- * Bloom filters
+       , BloomFlags(..)
+       , BloomFilter(..)
+       , FilterLoad(..)
+       , FilterAdd(..)
+       , bloomCreate
+       , bloomInsert
+       , bloomContains
+       , isBloomValid
+       , isBloomEmpty
+       , isBloomFull
+
+       ) where
 
 -- * Requesting data
 import           Network.Haskoin.Node.Bloom

@@ -2,60 +2,64 @@
   Arbitrary types for Network.Haskoin.Node.Message
 -}
 module Network.Haskoin.Test.Message
-  ( ArbitraryMessageHeader(..)
-  , ArbitraryMessage(..)
-  ) where
+       ( ArbitraryMessageHeader(..)
+       , ArbitraryMessage(..)
+       ) where
 
 import           Test.QuickCheck                  (Arbitrary, arbitrary, oneof)
 
-import           Network.Haskoin.Test.Block
-import           Network.Haskoin.Test.Crypto
-import           Network.Haskoin.Test.Node
-import           Network.Haskoin.Test.Transaction
+import           Network.Haskoin.Test.Block       (ArbitraryBlock (..),
+                                                   ArbitraryGetBlocks (..),
+                                                   ArbitraryGetHeaders (..),
+                                                   ArbitraryHeaders (..),
+                                                   ArbitraryMerkleBlock (..))
+import           Network.Haskoin.Test.Crypto      (ArbitraryCheckSum32 (..))
+import qualified Network.Haskoin.Test.Node        as N
+import           Network.Haskoin.Test.Transaction (ArbitraryTx (..))
 
-import           Network.Haskoin.Node.Message
+import qualified Network.Haskoin.Node.Message     as M
 
 -- | Arbitrary MessageHeader
 newtype ArbitraryMessageHeader =
-    ArbitraryMessageHeader MessageHeader
+    ArbitraryMessageHeader M.MessageHeader
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryMessageHeader where
     arbitrary =
         ArbitraryMessageHeader <$>
         do m <- arbitrary
-           ArbitraryMessageCommand mc <- arbitrary
+           N.ArbitraryMessageCommand mc <- arbitrary
            p <- arbitrary
            ArbitraryCheckSum32 c <- arbitrary
-           return $ MessageHeader m mc p c
+           return $ M.MessageHeader m mc p c
 
 -- | Arbitrary Message
 newtype ArbitraryMessage =
-    ArbitraryMessage Message
+    ArbitraryMessage M.Message
     deriving (Eq, Show)
 
 instance Arbitrary ArbitraryMessage where
     arbitrary =
         ArbitraryMessage <$>
         oneof
-            [ arbitrary >>= \(ArbitraryVersion x) -> return $ MVersion x
-            , return MVerAck
-            , arbitrary >>= \(ArbitraryAddr x) -> return $ MAddr x
-            , arbitrary >>= \(ArbitraryInv x) -> return $ MInv x
-            , arbitrary >>= \(ArbitraryGetData x) -> return $ MGetData x
-            , arbitrary >>= \(ArbitraryNotFound x) -> return $ MNotFound x
-            , arbitrary >>= \(ArbitraryGetBlocks x) -> return $ MGetBlocks x
-            , arbitrary >>= \(ArbitraryGetHeaders x) -> return $ MGetHeaders x
-            , arbitrary >>= \(ArbitraryTx x) -> return $ MTx x
-            , arbitrary >>= \(ArbitraryBlock x) -> return $ MBlock x
-            , arbitrary >>= \(ArbitraryMerkleBlock x) -> return $ MMerkleBlock x
-            , arbitrary >>= \(ArbitraryHeaders x) -> return $ MHeaders x
-            , return MGetAddr
-            , arbitrary >>= \(ArbitraryFilterLoad x) -> return $ MFilterLoad x
-            , arbitrary >>= \(ArbitraryFilterAdd x) -> return $ MFilterAdd x
-            , return MFilterClear
-            , arbitrary >>= \(ArbitraryPing x) -> return $ MPing x
-            , arbitrary >>= \(ArbitraryPong x) -> return $ MPong x
-            , arbitrary >>= \(ArbitraryAlert x) -> return $ MAlert x
-            , arbitrary >>= \(ArbitraryReject x) -> return $ MReject x
+            [ arbitrary >>= \(N.ArbitraryVersion x) -> return $ M.MVersion x
+            , return M.MVerAck
+            , arbitrary >>= \(N.ArbitraryAddr x) -> return $ M.MAddr x
+            , arbitrary >>= \(N.ArbitraryInv x) -> return $ M.MInv x
+            , arbitrary >>= \(N.ArbitraryGetData x) -> return $ M.MGetData x
+            , arbitrary >>= \(N.ArbitraryNotFound x) -> return $ M.MNotFound x
+            , arbitrary >>= \(ArbitraryGetBlocks x) -> return $ M.MGetBlocks x
+            , arbitrary >>= \(ArbitraryGetHeaders x) -> return $ M.MGetHeaders x
+            , arbitrary >>= \(ArbitraryTx x) -> return $ M.MTx x
+            , arbitrary >>= \(ArbitraryBlock x) -> return $ M.MBlock x
+            , arbitrary >>= \(ArbitraryMerkleBlock x) -> return $ M.MMerkleBlock x
+            , arbitrary >>= \(ArbitraryHeaders x) -> return $ M.MHeaders x
+            , return M.MGetAddr
+            , arbitrary >>= \(N.ArbitraryFilterLoad x) -> return $ M.MFilterLoad x
+            , arbitrary >>= \(N.ArbitraryFilterAdd x) -> return $ M.MFilterAdd x
+            , return M.MFilterClear
+            , arbitrary >>= \(N.ArbitraryPing x) -> return $ M.MPing x
+            , arbitrary >>= \(N.ArbitraryPong x) -> return $ M.MPong x
+            , arbitrary >>= \(N.ArbitraryAlert x) -> return $ M.MAlert x
+            , arbitrary >>= \(N.ArbitraryReject x) -> return $ M.MReject x
             ]

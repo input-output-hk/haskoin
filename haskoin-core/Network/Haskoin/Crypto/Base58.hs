@@ -1,29 +1,32 @@
 module Network.Haskoin.Crypto.Base58
-  ( Address(..)
-  , addrToBase58
-  , base58ToAddr
-  , encodeBase58
-  , decodeBase58
-  , encodeBase58Check
-  , decodeBase58Check
-  ) where
+       ( Address(..)
+       , addrToBase58
+       , base58ToAddr
+       , encodeBase58
+       , decodeBase58
+       , encodeBase58Check
+       , decodeBase58Check
+       ) where
 
 import           Control.DeepSeq             (NFData, rnf)
 import           Control.Monad               (guard, mzero)
-import           Data.Aeson                  (FromJSON, ToJSON, Value (String), parseJSON,
-                                              toJSON, withText)
+import           Data.Aeson                  (FromJSON, ToJSON, Value (String),
+                                              parseJSON, toJSON, withText)
 import           Data.ByteString             (ByteString)
 import qualified Data.ByteString             as BS
 import qualified Data.ByteString.Char8       as C
-import           Data.Maybe                  (fromJust, fromMaybe, isJust, listToMaybe)
+import           Data.Maybe                  (fromJust, fromMaybe, isJust,
+                                              listToMaybe)
 import           Data.Serialize              (Serialize, encode, get, put)
 import           Data.Serialize.Get          (getByteString, getWord8)
 import           Data.Serialize.Put          (putByteString, putWord8)
 import           Data.String                 (IsString, fromString)
 import           Data.String.Conversions     (cs)
-import           Network.Haskoin.Constants
-import           Network.Haskoin.Crypto.Hash
-import           Network.Haskoin.Util
+import           Network.Haskoin.Constants   (addrPrefix, scriptPrefix)
+import           Network.Haskoin.Crypto.Hash (Hash160, bsToHash160, checkSum32,
+                                              getHash160)
+import           Network.Haskoin.Util        (bsToInteger, decodeToMaybe,
+                                              integerToBS)
 import           Numeric                     (readInt, showIntAtBase)
 import           Text.Read                   (lexP, parens, pfail, readPrec)
 import qualified Text.Read                   as Read (Lexeme (Ident, String))

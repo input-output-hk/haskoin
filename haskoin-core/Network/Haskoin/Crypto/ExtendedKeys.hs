@@ -1,91 +1,106 @@
 module Network.Haskoin.Crypto.ExtendedKeys
-  ( XPubKey(..)
-  , XPrvKey(..)
-  , ChainCode
-  , KeyIndex
-  , DerivationException(..)
-  , makeXPrvKey
-  , deriveXPubKey
-  , prvSubKey
-  , pubSubKey
-  , hardSubKey
-  , xPrvIsHard
-  , xPubIsHard
-  , xPrvChild
-  , xPubChild
-  , xPubID
-  , xPrvID
-  , xPubFP
-  , xPrvFP
-  , xPubAddr
-  , xPubExport
-  , xPrvExport
-  , xPubImport
-  , xPrvImport
-  , xPrvWif
-   -- Helpers
-  , prvSubKeys
-  , pubSubKeys
-  , hardSubKeys
-  , deriveAddr
-  , deriveAddrs
-  , deriveMSAddr
-  , deriveMSAddrs
-  , cycleIndex
-   -- Derivation paths
-  , DerivPathI(..)
-  , HardOrGeneric
-  , GenericOrSoft
-  , DerivPath
-  , HardPath
-  , SoftPath
-  , Bip32PathIndex(..)
-  , derivePath
-  , derivePubPath
-  , toHard
-  , toSoft
-  , toGeneric
-  , (++/)
-  , pathToStr
-   -- Derivation path parsing
-  , XKey(..)
-  , ParsedPath(..)
-  , parsePath
-  , parseHard
-  , parseSoft
-  , applyPath
-  , derivePathAddr
-  , derivePathAddrs
-  , derivePathMSAddr
-  , derivePathMSAddrs
-  , concatBip32Segments
-  ) where
+       ( XPubKey(..)
+       , XPrvKey(..)
+       , ChainCode
+       , KeyIndex
+       , DerivationException(..)
+       , makeXPrvKey
+       , deriveXPubKey
+       , prvSubKey
+       , pubSubKey
+       , hardSubKey
+       , xPrvIsHard
+       , xPubIsHard
+       , xPrvChild
+       , xPubChild
+         , xPubID
+       , xPrvID
+       , xPubFP
+       , xPrvFP
+       , xPubAddr
+       , xPubExport
+       , xPrvExport
+       , xPubImport
+       , xPrvImport
+       , xPrvWif
+         -- Helpers
+       , prvSubKeys
+       , pubSubKeys
+       , hardSubKeys
+       , deriveAddr
+           , deriveAddrs
+       , deriveMSAddr
+       , deriveMSAddrs
+       , cycleIndex
+         -- Derivation paths
+       , DerivPathI(..)
+       , HardOrGeneric
+       , GenericOrSoft
+       , DerivPath
+       , HardPath
+       , SoftPath
+       , Bip32PathIndex (..)
+       , derivePath
+       , derivePubPath
+       , toHard
+       , toSoft
+       , toGeneric
+       , (++/)
+       , pathToStr
+
+         -- Derivation path parsing
+       , XKey(..)
+       , ParsedPath(..)
+       , parsePath
+       , parseHard
+       , parseSoft
+       , applyPath
+
+       , derivePathAddr
+       , derivePathAddrs
+       , derivePathMSAddr
+       , derivePathMSAddrs
+       , concatBip32Segments
+       ) where
 
 import           Control.DeepSeq               (NFData, rnf)
 import           Control.Exception             (Exception, throw)
 import           Control.Monad                 (guard, mzero, unless, (<=<))
 import qualified Crypto.Secp256k1              as EC
-import           Data.Aeson                    (FromJSON, ToJSON, Value (String),
-                                                parseJSON, toJSON, withText)
+import           Data.Aeson                    (FromJSON, ToJSON,
+                                                Value (String), parseJSON,
+                                                toJSON, withText)
 import           Data.Bits                     (clearBit, setBit, testBit)
 import           Data.ByteString               (ByteString)
 import qualified Data.ByteString               as BS (append, take)
 import           Data.List                     (foldl')
 import           Data.List.Split               (splitOn)
 import           Data.Maybe                    (fromMaybe)
-import           Data.Serialize                (Serialize, decode, encode, get, put)
+import           Data.Serialize                (Serialize, decode, encode, get,
+                                                put)
 import           Data.Serialize.Get            (Get, getWord32be, getWord8)
-import           Data.Serialize.Put            (Put, putWord32be, putWord8, runPut)
+import           Data.Serialize.Put            (Put, putWord32be, putWord8,
+                                                runPut)
 import           Data.String                   (IsString, fromString)
 import           Data.String.Conversions       (cs)
 import           Data.Typeable                 (Typeable)
 import           Data.Word                     (Word32, Word8)
-import           Network.Haskoin.Constants
-import           Network.Haskoin.Crypto.Base58
-import           Network.Haskoin.Crypto.Hash
-import           Network.Haskoin.Crypto.Keys
-import           Network.Haskoin.Script.Parser
-import           Network.Haskoin.Util
+import           Network.Haskoin.Constants     (extPubKeyPrefix,
+                                                extSecretPrefix)
+import           Network.Haskoin.Crypto.Base58 (Address, decodeBase58Check,
+                                                encodeBase58Check)
+import           Network.Haskoin.Crypto.Hash   (Hash160 (..), Hash256 (..),
+                                                hash160, hash256, hmac512,
+                                                split512)
+import           Network.Haskoin.Crypto.Keys   (PrvKeyC, PubKeyC, derivePubKey,
+                                                makePrvKeyC, prvKeyGetMonad,
+                                                prvKeyPutMonad, pubKeyAddr,
+                                                toPubKeyG, toWif, tweakPrvKeyC,
+                                                tweakPubKeyC)
+import           Network.Haskoin.Script.Parser (RedeemScript,
+                                                ScriptOutput (PayMulSig),
+                                                scriptAddr, sortMulSig)
+import           Network.Haskoin.Util          (decodeToMaybe)
 import           Text.Read                     (lexP, parens, pfail, readPrec)
 import qualified Text.Read                     as Read (Lexeme (Ident, String))
 
@@ -332,7 +347,7 @@ instance Serialize XPrvKey where
     get = do
         ver <- getWord32be
         unless (ver == extSecretPrefix) $
-            fail $ "Get: Invalid version for extended private key"
+            fail "Get: Invalid version for extended private key"
         dep <- getWord8
         par <- getWord32be
         idx <- getWord32be
@@ -351,7 +366,7 @@ instance Serialize XPubKey where
     get = do
         ver <- getWord32be
         unless (ver == extPubKeyPrefix) $
-            fail $ "Get: Invalid version for extended public key"
+            fail "Get: Invalid version for extended public key"
         dep <- getWord8
         par <- getWord32be
         idx <- getWord32be
@@ -424,7 +439,7 @@ cycleIndex :: KeyIndex -> [KeyIndex]
 cycleIndex i
     | i == 0 = cycle [0 .. 0x7fffffff]
     | i < 0x80000000 = cycle $ [i .. 0x7fffffff] ++ [0 .. (i - 1)]
-    | otherwise = error $ "cycleIndex: invalid index " ++ (show i)
+    | otherwise = error $ "cycleIndex: invalid index " ++ show i
 
 {- Derivation Paths -}
 data Hard
@@ -775,7 +790,7 @@ derivePathMSAddrs keys path =
 getPadPrvKey :: Get PrvKeyC
 getPadPrvKey = do
     pad <- getWord8
-    unless (pad == 0x00) $ fail $ "Private key must be padded with 0x00"
+    unless (pad == 0x00) $ fail "Private key must be padded with 0x00"
     prvKeyGetMonad makePrvKeyC -- Compressed version
 
 -- Serialize HDW-specific private key

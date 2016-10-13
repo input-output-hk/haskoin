@@ -2,32 +2,33 @@
   Arbitrary types for Network.Haskoin.Crypto
 -}
 module Network.Haskoin.Test.Crypto
-  ( ArbitraryHash512(..)
-  , ArbitraryHash256(..)
-  , ArbitraryHash160(..)
-  , ArbitraryCheckSum32(..)
-  , ArbitraryByteString(..)
-  , ArbitraryNotNullByteString(..)
-  , ArbitraryPrvKey(..)
-  , ArbitraryPrvKeyC(..)
-  , ArbitraryPrvKeyU(..)
-  , ArbitraryPubKey(..)
-  , ArbitraryPubKeyC(..)
-  , ArbitraryPubKeyU(..)
-  , ArbitraryAddress(..)
-  , ArbitraryPubKeyAddress(..)
-  , ArbitraryScriptAddress(..)
-  , ArbitrarySignature(..)
-  , ArbitraryXPrvKey(..)
-  , ArbitraryXPubKey(..)
-  , ArbitraryHardPath(..)
-  , ArbitrarySoftPath(..)
-  , ArbitraryDerivPath(..)
-  , ArbitraryParsedPath(..)
-  ) where
+       ( ArbitraryHash512(..)
+       , ArbitraryHash256(..)
+       , ArbitraryHash160(..)
+       , ArbitraryCheckSum32(..)
+       , ArbitraryByteString(..)
+       , ArbitraryNotNullByteString(..)
+       , ArbitraryPrvKey(..)
+       , ArbitraryPrvKeyC(..)
+       , ArbitraryPrvKeyU(..)
+       , ArbitraryPubKey(..)
+       , ArbitraryPubKeyC(..)
+       , ArbitraryPubKeyU(..)
+       , ArbitraryAddress(..)
+       , ArbitraryPubKeyAddress(..)
+       , ArbitraryScriptAddress(..)
+       , ArbitrarySignature(..)
+       , ArbitraryXPrvKey(..)
+       , ArbitraryXPubKey(..)
+       , ArbitraryHardPath(..)
+       , ArbitrarySoftPath(..)
+       , ArbitraryDerivPath(..)
+       , ArbitraryParsedPath(..)
 
-import           Test.QuickCheck                     (Arbitrary, Gen, arbitrary, listOf,
-                                                      oneof, vectorOf)
+       ) where
+
+import           Test.QuickCheck                     (Arbitrary, Gen, arbitrary,
+                                                      listOf, oneof, vectorOf)
 
 import           Crypto.Secp256k1                    ()
 
@@ -37,12 +38,26 @@ import           Data.Maybe                          (fromMaybe)
 import           Data.Word                           (Word32)
 
 import           Data.List                           (foldl')
-import           Network.Haskoin.Crypto.Base58
-import           Network.Haskoin.Crypto.ECDSA
-import           Network.Haskoin.Crypto.ExtendedKeys
-import           Network.Haskoin.Crypto.Hash
-import           Network.Haskoin.Crypto.Keys
-import           Network.Haskoin.Test.Util
+import           Network.Haskoin.Crypto.Base58       (Address (..))
+import           Network.Haskoin.Crypto.ECDSA        (Signature, signMsg)
+import           Network.Haskoin.Crypto.ExtendedKeys (Bip32PathIndex (..),
+                                                      DerivPath,
+                                                      DerivPathI (..), HardPath,
+                                                      ParsedPath (..), SoftPath,
+                                                      XPrvKey (..), XPubKey,
+                                                      concatBip32Segments,
+                                                      deriveXPubKey)
+import           Network.Haskoin.Crypto.Hash         (CheckSum32, Hash160,
+                                                      Hash256, Hash512,
+                                                      bsToCheckSum32,
+                                                      bsToHash160, bsToHash256,
+                                                      bsToHash512)
+import           Network.Haskoin.Crypto.Keys         (PrvKey, PrvKeyC, PrvKeyU,
+                                                      PubKey, PubKeyC, PubKeyU,
+                                                      derivePubKey, makePrvKeyC,
+                                                      makePrvKeyU, toPrvKeyG,
+                                                      toPubKeyG)
+import           Network.Haskoin.Test.Util           (ArbitraryByteString (..), ArbitraryNotNullByteString (..))
 
 newtype ArbitraryHash160 =
     ArbitraryHash160 Hash160
@@ -280,5 +295,6 @@ data ArbitraryParsedPath =
 instance Arbitrary ArbitraryParsedPath where
     arbitrary = do
         ArbitraryDerivPath d <- arbitrary
-        ArbitraryParsedPath <$>
-            oneof [pure $ ParsedPrv d, pure $ ParsedPub d, pure $ ParsedEmpty d]
+        ArbitraryParsedPath <$> oneof [ pure $ ParsedPrv d
+                                      , pure $ ParsedPub d
+                                      , pure $ ParsedEmpty d ]

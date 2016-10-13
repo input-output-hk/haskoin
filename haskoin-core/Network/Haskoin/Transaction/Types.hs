@@ -1,14 +1,14 @@
 module Network.Haskoin.Transaction.Types
-  ( Tx(..)
-  , createTx
-  , TxIn(..)
-  , TxOut(..)
-  , OutPoint(..)
-  , TxHash(..)
-  , hexToTxHash
-  , txHashToHex
-  , nosigTxHash
-  ) where
+       ( Tx (..)
+       , createTx
+       , TxIn(..)
+       , TxOut(..)
+       , OutPoint(..)
+       , TxHash(..)
+       , hexToTxHash
+       , txHashToHex
+       , nosigTxHash
+       ) where
 
 import           Control.DeepSeq             (NFData, rnf)
 import           Control.Monad               (forM_, liftM2, mzero, replicateM, (<=<))
@@ -25,9 +25,11 @@ import           Data.Serialize.Put          (putByteString, putWord32le, putWor
 import           Data.String                 (IsString, fromString)
 import           Data.String.Conversions     (cs)
 import           Data.Word                   (Word32, Word64)
-import           Network.Haskoin.Crypto.Hash (Hash256 (..), bsToHash256, doubleHash256)
-import           Network.Haskoin.Node.Types
-import           Network.Haskoin.Util
+import           Network.Haskoin.Crypto.Hash (Hash256 (..), bsToHash256,
+                                              doubleHash256)
+import           Network.Haskoin.Node.Types  (VarInt (..))
+import           Network.Haskoin.Util        (decodeHex, decodeToMaybe,
+                                              encodeHex)
 import           Text.Read                   (lexP, parens, pfail, readPrec)
 import qualified Text.Read                   as Read (Lexeme (Ident, String))
 
@@ -67,7 +69,7 @@ nosigTxHash tx@Tx {..} =
     doubleHash256 $
     encode $
     tx
-    { txIn = map clearInput $ txIn
+    { txIn = map clearInput txIn
     }
   where
     clearInput ti =
@@ -156,7 +158,7 @@ instance Serialize Tx where
                end <- remaining
                return (v, is, os, l, end)
         bs <- getByteString $ fromIntegral $ start - end
-        return $
+        return
             Tx
             { txVersion = v
             , txIn = is
@@ -222,7 +224,8 @@ instance Serialize TxOut where
     get = do
         val <- getWord64le
         (VarInt len) <- get
-        TxOut val <$> (getByteString $ fromIntegral len)
+        TxOut val <$> getByteString (fromIntegral len)
+
     put (TxOut o s) = do
         putWord64le o
         put $ VarInt $ fromIntegral $ BS.length s

@@ -1,24 +1,29 @@
 module Network.Haskoin.Node.Message
-  ( Message(..)
-  , MessageHeader(..)
-  ) where
+       ( Message(..)
+       , MessageHeader(..)
+       ) where
 
 import           Control.DeepSeq                   (NFData, rnf)
 import           Control.Monad                     (unless)
 import qualified Data.ByteString                   as BS (append, empty, length)
 import           Data.Serialize                    (Serialize, encode, get, put)
 import           Data.Serialize.Get                (getByteString, getWord32be,
-                                                    getWord32le, isolate, lookAhead)
+                                                    getWord32le, isolate,
+                                                    lookAhead)
 import           Data.Serialize.Put                (putByteString, putWord32be,
                                                     putWord32le)
 import           Data.Word                         (Word32)
-import           Network.Haskoin.Block.Merkle
-import           Network.Haskoin.Block.Types
-import           Network.Haskoin.Constants
-import           Network.Haskoin.Crypto.Hash
-import           Network.Haskoin.Node.Bloom
-import           Network.Haskoin.Node.Types
-import           Network.Haskoin.Transaction.Types
+import           Network.Haskoin.Block.Merkle      (MerkleBlock)
+import           Network.Haskoin.Block.Types       (Block, GetBlocks,
+                                                    GetHeaders, Headers)
+import           Network.Haskoin.Constants         (networkMagic)
+import           Network.Haskoin.Crypto.Hash       (CheckSum32, checkSum32)
+import           Network.Haskoin.Node.Bloom        (FilterAdd, FilterLoad)
+import           Network.Haskoin.Node.Types        (Addr, Alert, GetData, Inv,
+                                                    MessageCommand (..),
+                                                    NotFound, Ping, Pong,
+                                                    Reject, Version)
+import           Network.Haskoin.Transaction.Types (Tx)
 
 -- | Data type representing the header of a 'Message'. All messages sent between
 -- nodes contain a message header.
@@ -40,7 +45,11 @@ instance NFData MessageHeader where
     rnf (MessageHeader m c p s) = rnf m `seq` rnf c `seq` rnf p `seq` rnf s
 
 instance Serialize MessageHeader where
-    get = MessageHeader <$> getWord32be <*> get <*> getWord32le <*> get
+    get = MessageHeader <$> getWord32be
+                        <*> get
+                        <*> getWord32le
+                        <*> get
+
     put (MessageHeader m c l chk) = do
         putWord32be m
         put c
@@ -83,10 +92,10 @@ instance Serialize Message where
         bs <- lookAhead $ getByteString $ fromIntegral len
         unless
             (mgc == networkMagic)
-            (fail $ "get: Invalid network magic bytes: " ++ (show mgc))
+            (fail $ "get: Invalid network magic bytes: " ++ show mgc)
         unless
             (checkSum32 bs == chk)
-            (fail $ "get: Invalid message checksum: " ++ (show chk))
+            (fail $ "get: Invalid message checksum: " ++ show chk)
         if len > 0
             then isolate (fromIntegral len) $
                  case cmd of
@@ -107,13 +116,13 @@ instance Serialize Message where
                      MCPong        -> MPong <$> get
                      MCAlert       -> MAlert <$> get
                      MCReject      -> MReject <$> get
-                     _             -> fail $ "get: Invalid command " ++ (show cmd)
+                     _             -> fail $ "get: Invalid command " ++ show cmd
             else case cmd of
                      MCGetAddr     -> return MGetAddr
                      MCVerAck      -> return MVerAck
                      MCFilterClear -> return MFilterClear
                      MCMempool     -> return MMempool
-                     _             -> fail $ "get: Invalid command " ++ (show cmd)
+                     _             -> fail $ "get: Invalid command " ++ show cmd
     put msg = do
         let (cmd, payload) =
                 case msg of
@@ -141,4 +150,4 @@ instance Serialize Message where
             chk = checkSum32 payload
             len = fromIntegral $ BS.length payload
             header = MessageHeader networkMagic cmd len chk
-        putByteString $ (encode header) `BS.append` payload
+        putByteString $ encode header `BS.append` payload

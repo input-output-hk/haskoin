@@ -1,16 +1,16 @@
 -- | ECDSA Signatures
 module Network.Haskoin.Crypto.ECDSA
-  ( SecretT
-  , Signature(..)
-  , withSource
-  , getEntropy
-  , signMsg
-  , verifySig
-  , genPrvKey
-  , isCanonicalHalfOrder
-  , decodeDerSig
-  , decodeStrictSig
-  ) where
+       ( SecretT
+       , Signature(..)
+       , withSource
+       , getEntropy
+       , signMsg
+       , verifySig
+       , genPrvKey
+       , isCanonicalHalfOrder
+       , decodeDerSig
+       , decodeStrictSig
+       ) where
 
 import           Numeric                     (showHex)
 
@@ -22,15 +22,19 @@ import           Control.Monad.Trans         (lift)
 import           Data.ByteString             (ByteString)
 import           Data.Maybe                  (fromMaybe)
 import           Data.Serialize              (Serialize, get, put)
-import           Data.Serialize.Get          (getByteString, getWord8, lookAhead)
+import           Data.Serialize.Get          (getByteString, getWord8,
+                                              lookAhead)
 import           Data.Serialize.Put          (putByteString, putByteString)
 import           System.Entropy              (getEntropy)
 
 import qualified Crypto.Secp256k1            as EC
 
-import           Network.Haskoin.Constants
-import           Network.Haskoin.Crypto.Hash
-import           Network.Haskoin.Crypto.Keys
+import           Network.Haskoin.Constants   (haskoinUserAgent)
+import           Network.Haskoin.Crypto.Hash (Hash256 (..), WorkingState,
+                                              hmacDRBGGen, hmacDRBGNew,
+                                              hmacDRBGRsd)
+import           Network.Haskoin.Crypto.Keys (PrvKey, PubKey, makePrvKey,
+                                              prvKeySecKey, pubKeyPoint)
 
 -- | Internal state of the 'SecretT' monad
 type SecretState m = (WorkingState, Int -> m ByteString)

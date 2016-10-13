@@ -5,48 +5,57 @@
   Network.Haskoin modules.
 -}
 module Network.Haskoin.Util
-  ( bsToInteger
-  , integerToBS
-  , encodeHex
-  , decodeHex
-   -- * Maybe and Either monad helpers
-  , isLeft
-  , isRight
-  , fromRight
-  , fromLeft
-  , eitherToMaybe
-  , maybeToEither
-  , liftEither
-  , liftMaybe
-   -- * Various helpers
-  , decodeToMaybe
-  , updateIndex
-  , matchTemplate
-   -- * Triples
-  , fst3
-  , snd3
-  , lst3
-   -- * MonadState
-  , modify'
-   -- * JSON Utilities
-  , dropFieldLabel
-  , dropSumLabels
-  ) where
+       (
+         -- * ByteString helpers
+         bsToInteger
+       , integerToBS
+       , encodeHex
+       , decodeHex
 
--- * ByteString helpers
+         -- * Maybe and Either monad helpers
+       , isLeft
+       , isRight
+       , fromRight
+       , fromLeft
+       , eitherToMaybe
+       , maybeToEither
+       , liftEither
+       , liftMaybe
+
+         -- * Various helpers
+       , decodeToMaybe
+       , updateIndex
+       , matchTemplate
+
+         -- * Triples
+       , fst3
+       , snd3
+       , lst3
+
+         -- * MonadState
+       , modify'
+
+         -- * JSON Utilities
+       , dropFieldLabel
+       , dropSumLabels
+
+       ) where
+
 import           Control.Monad              (guard)
 import           Control.Monad.State        (MonadState, get, put)
 import           Control.Monad.Trans.Either (EitherT, hoistEither)
 
 import           Data.Aeson.Types           (Options (..), SumEncoding (..),
-                                             defaultOptions, defaultTaggedObject)
+                                             defaultOptions,
+                                             defaultTaggedObject)
 import           Data.Bits                  (shiftL, shiftR, (.|.))
 import           Data.Char                  (toLower)
 import           Data.Serialize             (Serialize, decode)
 import           Data.Word                  (Word8)
 
 import           Data.ByteString            (ByteString)
-import qualified Data.ByteString            as BS (empty, foldr', pack, reverse, unfoldr)
+import qualified Data.ByteString            as BS (empty, foldr', pack, reverse,
+                                                   unfoldr)
 import qualified Data.ByteString.Base16     as B16
 
 -- ByteString helpers
@@ -92,12 +101,14 @@ fromRight :: Either a b -> b
 fromRight (Right b) = b
 fromRight _         = error "Either.fromRight: Left"
 
--- | Extract the 'Left' value from an 'Either' value. Fails if the value is 'Right'
+-- | Extract the 'Left' value from an 'Either' value.
+-- Fails if the value is 'Right'
 fromLeft :: Either a b -> a
 fromLeft (Left a) = a
 fromLeft _        = error "Either.fromLeft: Right"
 
--- | Transforms an 'Either' value into a 'Maybe' value. 'Right' is mapped to 'Just'
+-- | Transforms an 'Either' value into a 'Maybe' value.
+-- 'Right' is mapped to 'Just'
 -- and 'Left' is mapped to 'Nothing'. The value inside 'Left' is lost.
 eitherToMaybe :: Either a b -> Maybe b
 eitherToMaybe (Right b) = Just b

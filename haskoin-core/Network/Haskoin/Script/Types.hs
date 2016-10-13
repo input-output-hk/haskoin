@@ -1,19 +1,20 @@
 module Network.Haskoin.Script.Types
-  ( ScriptOp(..)
-  , Script(..)
-  , PushDataType(..)
-  , isPushOp
-  , opPushData
-  ) where
+       ( ScriptOp(..)
+       , Script(..)
+       , PushDataType(..)
+       , isPushOp
+       , opPushData
+       ) where
 
 import           Control.DeepSeq    (NFData, rnf)
 import           Control.Monad      (forM_, unless)
 
 import qualified Data.ByteString    as BS (ByteString, length)
 import           Data.Serialize     (Serialize, get, put)
-import           Data.Serialize.Get (getByteString, getWord16le, getWord32le, getWord8,
-                                     isEmpty)
-import           Data.Serialize.Put (putByteString, putWord16le, putWord32le, putWord8)
+import           Data.Serialize.Get (getByteString, getWord16le, getWord32le,
+                                     getWord8, isEmpty)
+import           Data.Serialize.Put (putByteString, putWord16le, putWord32le,
+                                     putWord8)
 import           Data.Word          (Word8)
 
 -- | Data type representing a transaction script. Scripts are defined as lists
@@ -193,7 +194,7 @@ instance Serialize ScriptOp where
     get = go =<< (fromIntegral <$> getWord8)
       where
         go op
-            | op == 0x00 = return $ OP_0
+            | op == 0x00 = return OP_0
             | op <= 0x4b = do
                 payload <- getByteString (fromIntegral op)
                 return $ OP_PUSHDATA payload OPCODE

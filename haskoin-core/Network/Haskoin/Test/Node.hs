@@ -2,61 +2,63 @@
   Arbitrary types for Network.Haskoin.Node
 -}
 module Network.Haskoin.Test.Node
-  ( ArbitraryVarInt(..)
-  , ArbitraryVarString(..)
-  , ArbitraryNetworkAddress(..)
-  , ArbitraryNetworkAddressTime(..)
-  , ArbitraryInvType(..)
-  , ArbitraryInvVector(..)
-  , ArbitraryInv(..)
-  , ArbitraryVersion(..)
-  , ArbitraryAddr(..)
-  , ArbitraryAlert(..)
-  , ArbitraryReject(..)
-  , ArbitraryRejectCode(..)
-  , ArbitraryGetData(..)
-  , ArbitraryNotFound(..)
-  , ArbitraryPing(..)
-  , ArbitraryPong(..)
-  , ArbitraryBloomFlags(..)
-  , ArbitraryBloomFilter(..)
-  , ArbitraryFilterLoad(..)
-  , ArbitraryFilterAdd(..)
-  , ArbitraryMessageCommand(..)
-  ) where
+       ( ArbitraryVarInt(..)
+       , ArbitraryVarString(..)
+       , ArbitraryNetworkAddress(..)
+       , ArbitraryNetworkAddressTime(..)
+       , ArbitraryInvType(..)
+       , ArbitraryInvVector(..)
+       , ArbitraryInv(..)
+       , ArbitraryVersion(..)
+       , ArbitraryAddr(..)
+       , ArbitraryAlert(..)
+       , ArbitraryReject(..)
+       , ArbitraryRejectCode(..)
+       , ArbitraryGetData(..)
+       , ArbitraryNotFound(..)
+       , ArbitraryPing(..)
+       , ArbitraryPong(..)
+       , ArbitraryBloomFlags(..)
+       , ArbitraryBloomFilter(..)
+       , ArbitraryFilterLoad(..)
+       , ArbitraryFilterAdd(..)
+       , ArbitraryMessageCommand(..)
+       ) where
 
-import           Test.QuickCheck             (Arbitrary, arbitrary, choose, elements,
-                                              listOf1, oneof, vectorOf)
+import           Test.QuickCheck             (Arbitrary, arbitrary, choose,
+                                              elements, listOf1, oneof,
+                                              vectorOf)
 
 import qualified Data.ByteString             as BS (empty, pack)
 import           Data.Word                   (Word16, Word32)
 
 import           Network.Socket              (SockAddr (..))
 
-import           Network.Haskoin.Node
-import           Network.Haskoin.Test.Crypto
+import qualified Network.Haskoin.Node        as N
+import           Network.Haskoin.Test.Crypto (ArbitraryByteString (..),
+                                              ArbitraryHash256 (..))
 
 -- | Arbitrary VarInt
 newtype ArbitraryVarInt =
-    ArbitraryVarInt VarInt
+    ArbitraryVarInt N.VarInt
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryVarInt where
-    arbitrary = ArbitraryVarInt . VarInt <$> arbitrary
+    arbitrary = ArbitraryVarInt . N.VarInt <$> arbitrary
 
 -- | Arbitrary VarString
 newtype ArbitraryVarString =
-    ArbitraryVarString VarString
+    ArbitraryVarString N.VarString
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryVarString where
     arbitrary = do
         ArbitraryByteString bs <- arbitrary
-        return $ ArbitraryVarString $ VarString bs
+        return $ ArbitraryVarString $ N.VarString bs
 
 -- | Arbitrary NetworkAddress
 newtype ArbitraryNetworkAddress =
-    ArbitraryNetworkAddress NetworkAddress
+    ArbitraryNetworkAddress N.NetworkAddress
     deriving (Eq, Show)
 
 instance Arbitrary ArbitraryNetworkAddress where
@@ -64,7 +66,7 @@ instance Arbitrary ArbitraryNetworkAddress where
         s <- arbitrary
         a <- arbitrary
         p <- arbitrary
-        ArbitraryNetworkAddress . (NetworkAddress s) <$>
+        ArbitraryNetworkAddress . N.NetworkAddress s <$>
             oneof
                 [ do b <- arbitrary
                      c <- arbitrary
@@ -75,7 +77,7 @@ instance Arbitrary ArbitraryNetworkAddress where
 
 -- | Arbitrary NetworkAddressTime
 newtype ArbitraryNetworkAddressTime =
-    ArbitraryNetworkAddressTime (Word32, NetworkAddress)
+    ArbitraryNetworkAddressTime (Word32, N.NetworkAddress)
 
 instance Arbitrary ArbitraryNetworkAddressTime where
     arbitrary = do
@@ -85,38 +87,38 @@ instance Arbitrary ArbitraryNetworkAddressTime where
 
 -- | Arbitrary InvType
 newtype ArbitraryInvType =
-    ArbitraryInvType InvType
+    ArbitraryInvType N.InvType
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryInvType where
     arbitrary =
         ArbitraryInvType <$>
-        elements [InvError, InvTx, InvBlock, InvMerkleBlock]
+        elements [N.InvError, N.InvTx, N.InvBlock, N.InvMerkleBlock]
 
 -- | Arbitrary InvVector
 newtype ArbitraryInvVector =
-    ArbitraryInvVector InvVector
+    ArbitraryInvVector N.InvVector
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryInvVector where
     arbitrary = do
         ArbitraryInvType t <- arbitrary
         ArbitraryHash256 h <- arbitrary
-        return $ ArbitraryInvVector $ InvVector t h
+        return $ ArbitraryInvVector $ N.InvVector t h
 
 -- | Arbitrary non-empty Inv
 newtype ArbitraryInv =
-    ArbitraryInv Inv
+    ArbitraryInv N.Inv
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryInv where
     arbitrary = do
         vs <- listOf1 arbitrary
-        return $ ArbitraryInv $ Inv $ map (\(ArbitraryInvVector v) -> v) vs
+        return $ ArbitraryInv $ N.Inv $ map (\(ArbitraryInvVector v) -> v) vs
 
 -- | Arbitrary Version
 newtype ArbitraryVersion =
-    ArbitraryVersion Version
+    ArbitraryVersion N.Version
     deriving (Eq, Show)
 
 instance Arbitrary ArbitraryVersion where
@@ -130,34 +132,34 @@ instance Arbitrary ArbitraryVersion where
         ArbitraryVarString a <- arbitrary
         h <- arbitrary
         r <- arbitrary
-        return $ ArbitraryVersion $ Version v s t nr ns n a h r
+        return $ ArbitraryVersion $ N.Version v s t nr ns n a h r
 
 -- | Arbitrary non-empty Addr
 newtype ArbitraryAddr =
-    ArbitraryAddr Addr
+    ArbitraryAddr N.Addr
     deriving (Eq, Show)
 
 instance Arbitrary ArbitraryAddr where
     arbitrary = do
         vs <- listOf1 arbitrary
         return $
-            ArbitraryAddr $ Addr $ map (\(ArbitraryNetworkAddressTime x) -> x) vs
+            ArbitraryAddr $ N.Addr $ map (\(ArbitraryNetworkAddressTime x) -> x) vs
 
 -- | Arbitrary alert with random payload and signature. Signature is not
 -- valid.
 newtype ArbitraryAlert =
-    ArbitraryAlert Alert
+    ArbitraryAlert N.Alert
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryAlert where
     arbitrary = do
         ArbitraryVarString p <- arbitrary
         ArbitraryVarString s <- arbitrary
-        return $ ArbitraryAlert $ Alert p s
+        return $ ArbitraryAlert $ N.Alert p s
 
 -- | Arbitrary Reject
 newtype ArbitraryReject =
-    ArbitraryReject Reject
+    ArbitraryReject N.Reject
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryReject where
@@ -166,81 +168,81 @@ instance Arbitrary ArbitraryReject where
         ArbitraryRejectCode c <- arbitrary
         ArbitraryVarString s <- arbitrary
         d <- oneof [return BS.empty, BS.pack <$> vectorOf 32 arbitrary]
-        return $ ArbitraryReject $ Reject m c s d
+        return $ ArbitraryReject $ N.Reject m c s d
 
 -- | Arbitrary RejectCode
 newtype ArbitraryRejectCode =
-    ArbitraryRejectCode RejectCode
+    ArbitraryRejectCode N.RejectCode
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryRejectCode where
     arbitrary =
         ArbitraryRejectCode <$>
         elements
-            [ RejectMalformed
-            , RejectInvalid
-            , RejectInvalid
-            , RejectDuplicate
-            , RejectNonStandard
-            , RejectDust
-            , RejectInsufficientFee
-            , RejectCheckpoint
+            [ N.RejectMalformed
+            , N.RejectInvalid
+            , N.RejectInvalid
+            , N.RejectDuplicate
+            , N.RejectNonStandard
+            , N.RejectDust
+            , N.RejectInsufficientFee
+            , N.RejectCheckpoint
             ]
 
 -- | Arbitrary non-empty GetData
 newtype ArbitraryGetData =
-    ArbitraryGetData GetData
+    ArbitraryGetData N.GetData
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryGetData where
     arbitrary = do
         vs <- listOf1 arbitrary
         return $
-            ArbitraryGetData $ GetData $ map (\(ArbitraryInvVector x) -> x) vs
+            ArbitraryGetData $ N.GetData $ map (\(ArbitraryInvVector x) -> x) vs
 
 -- | Arbitrary NotFound
 newtype ArbitraryNotFound =
-    ArbitraryNotFound NotFound
+    ArbitraryNotFound N.NotFound
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryNotFound where
     arbitrary = do
         vs <- listOf1 arbitrary
         return $
-            ArbitraryNotFound $ NotFound $ map (\(ArbitraryInvVector x) -> x) vs
+            ArbitraryNotFound $ N.NotFound $ map (\(ArbitraryInvVector x) -> x) vs
 
 -- | Arbitrary Ping
 newtype ArbitraryPing =
-    ArbitraryPing Ping
+    ArbitraryPing N.Ping
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryPing where
-    arbitrary = ArbitraryPing . Ping <$> arbitrary
+    arbitrary = ArbitraryPing . N.Ping <$> arbitrary
 
 -- | Arbitrary Pong
 newtype ArbitraryPong =
-    ArbitraryPong Pong
+    ArbitraryPong N.Pong
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryPong where
-    arbitrary = ArbitraryPong . Pong <$> arbitrary
+    arbitrary = ArbitraryPong . N.Pong <$> arbitrary
 
 -- | Arbitrary bloom filter flags
 data ArbitraryBloomFlags =
-    ArbitraryBloomFlags BloomFlags
+    ArbitraryBloomFlags N.BloomFlags
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryBloomFlags where
     arbitrary =
         ArbitraryBloomFlags <$>
-        elements [BloomUpdateNone, BloomUpdateAll, BloomUpdateP2PubKeyOnly]
+        elements [N.BloomUpdateNone, N.BloomUpdateAll, N.BloomUpdateP2PubKeyOnly]
 
 -- | Arbitrary bloom filter with its corresponding number of elements
 -- and false positive rate.
 data ArbitraryBloomFilter =
     ArbitraryBloomFilter Int
                          Double
-                         BloomFilter
+                         N.BloomFilter
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryBloomFilter where
@@ -249,54 +251,54 @@ instance Arbitrary ArbitraryBloomFilter where
         fp <- choose (1e-8, 1)
         tweak <- arbitrary
         ArbitraryBloomFlags fl <- arbitrary
-        return $ ArbitraryBloomFilter n fp $ bloomCreate n fp tweak fl
+        return $ ArbitraryBloomFilter n fp $ N.bloomCreate n fp tweak fl
 
 -- | Arbitrary FilterLoad
 data ArbitraryFilterLoad =
-    ArbitraryFilterLoad FilterLoad
+    ArbitraryFilterLoad N.FilterLoad
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryFilterLoad where
     arbitrary = do
         ArbitraryBloomFilter _ _ bf <- arbitrary
-        return $ ArbitraryFilterLoad $ FilterLoad bf
+        return $ ArbitraryFilterLoad $ N.FilterLoad bf
 
 -- | Arbitrary FilterAdd
 data ArbitraryFilterAdd =
-    ArbitraryFilterAdd FilterAdd
+    ArbitraryFilterAdd N.FilterAdd
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryFilterAdd where
     arbitrary = do
         ArbitraryByteString bs <- arbitrary
-        return $ ArbitraryFilterAdd $ FilterAdd bs
+        return $ ArbitraryFilterAdd $ N.FilterAdd bs
 
 -- | Arbitrary MessageCommand
 newtype ArbitraryMessageCommand =
-    ArbitraryMessageCommand MessageCommand
+    ArbitraryMessageCommand N.MessageCommand
     deriving (Eq, Show, Read)
 
 instance Arbitrary ArbitraryMessageCommand where
     arbitrary =
         ArbitraryMessageCommand <$>
         elements
-            [ MCVersion
-            , MCVerAck
-            , MCAddr
-            , MCInv
-            , MCGetData
-            , MCNotFound
-            , MCGetBlocks
-            , MCGetHeaders
-            , MCTx
-            , MCBlock
-            , MCMerkleBlock
-            , MCHeaders
-            , MCGetAddr
-            , MCFilterLoad
-            , MCFilterAdd
-            , MCFilterClear
-            , MCPing
-            , MCPong
-            , MCAlert
+            [ N.MCVersion
+            , N.MCVerAck
+            , N.MCAddr
+            , N.MCInv
+            , N.MCGetData
+            , N.MCNotFound
+            , N.MCGetBlocks
+            , N.MCGetHeaders
+            , N.MCTx
+            , N.MCBlock
+            , N.MCMerkleBlock
+            , N.MCHeaders
+            , N.MCGetAddr
+            , N.MCFilterLoad
+            , N.MCFilterAdd
+            , N.MCFilterClear
+            , N.MCPing
+            , N.MCPong
+            , N.MCAlert
             ]

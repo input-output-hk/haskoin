@@ -1,25 +1,26 @@
 module Network.Haskoin.Block.Types
-  ( Block(..)
-  , BlockHeader
-  , createBlockHeader
-  , blockVersion
-  , prevBlock
-  , merkleRoot
-  , blockTimestamp
-  , blockBits
-  , bhNonce
-  , headerHash
-  , BlockLocator
-  , GetBlocks(..)
-  , GetHeaders(..)
-  , BlockHeaderCount
-  , BlockHash(..)
-  , blockHashToHex
-  , hexToBlockHash
-  , Headers(..)
-  , decodeCompact
-  , encodeCompact
-  ) where
+       ( Block(..)
+       , BlockHeader
+       , createBlock
+       , createBlockHeader
+       , blockVersion
+       , prevBlock
+       , merkleRoot
+       , blockTimestamp
+       , blockBits
+       , bhNonce
+       , headerHash
+       , BlockLocator
+       , GetBlocks(..)
+       , GetHeaders(..)
+       , BlockHeaderCount
+       , BlockHash(..)
+       , blockHashToHex
+       , hexToBlockHash
+       , Headers(..)
+       , decodeCompact
+       , encodeCompact
+       ) where
 
 import           Control.DeepSeq                   (NFData, rnf)
 import           Control.Monad                     (forM_, liftM2, mzero, replicateM)
@@ -37,12 +38,16 @@ import           Data.Serialize.Put                (Put, putWord32le)
 import           Data.String                       (IsString, fromString)
 import           Data.String.Conversions           (cs)
 import           Data.Word                         (Word32)
-import           Network.Haskoin.Crypto.Hash
-import           Network.Haskoin.Node.Types
-import           Network.Haskoin.Transaction.Types
-import           Network.Haskoin.Util
-import           Text.Read                         (lexP, parens, pfail, readPrec)
-import qualified Text.Read                         as Read (Lexeme (Ident, String))
+import           Network.Haskoin.Crypto.Hash       (Hash256 (..), bsToHash256,
+                                                    doubleHash256, hash256)
+import           Network.Haskoin.Node.Types        (VarInt (..))
+import           Network.Haskoin.Transaction.Types (Tx, TxHash)
+import           Network.Haskoin.Util              (encodeHex, decodeHex,
+                                                    integerToBS)
+import           Text.Read                         (lexP, parens, pfail,
+                                                    readPrec)
+import qualified Text.Read                         as Read (Lexeme
+                                                            (Ident, String))
 
 -- | Data type describing a block in the bitcoin protocol. Blocks are sent in
 -- response to 'GetData' messages that are requesting information from a
