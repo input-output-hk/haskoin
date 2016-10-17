@@ -69,18 +69,18 @@ startServerNode
     :: (MonadLoggerIO m, MonadBaseControl IO m)
     => Int -> NodeT m ()
 startServerNode port = do
-    $(logDebug) $ pack $ unwords ["Starting server node at", show $ port]
+    $(logDebug) $ pack $ unwords ["Starting server node at", show port]
     runGeneralTCPServer (serverSettings port "*") $
         \ad -> do
             $(logInfo) $
                 pack $
-                unwords $
-                [ "Incoming connection from "
-                , case appSockAddr ad of
-                      SockAddrInet clientPort clientHost ->
-                          show clientHost ++ ":" ++ show clientPort
-                      _ -> "unknown addr family"
-                ]
+                unwords
+                  [ "Incoming connection from "
+                  , case appSockAddr ad of
+                        SockAddrInet clientPort clientHost ->
+                            show clientHost ++ ":" ++ show clientPort
+                        _ -> "unknown addr family"
+                  ]
             startIncomingPeer ad
 
 -- Source of all transaction broadcasts
@@ -285,7 +285,7 @@ merkleSyncedActions walletHash =
                           writeTVarS sharedMerklePeer Nothing
                    -- Do a mempool sync on the first merkle sync
                    when (M.null mempool) $
-                       do atomicallyNodeT $ do sendMessageAll MMempool
+                       do atomicallyNodeT $ sendMessageAll MMempool
                           $(logInfo) "Requesting a mempool sync"
 
 -- Wait for headers to catch up to the given height
@@ -598,8 +598,7 @@ headerSync = do
         else do
             (synced, ourHeight) <- syncedHeight
             if synced
-                then do
-                    $(logInfo) $
+                then $(logInfo) $
                         formatPid pid peerSessionHost $
                         unwords
                             [ "Block headers are in sync with the"

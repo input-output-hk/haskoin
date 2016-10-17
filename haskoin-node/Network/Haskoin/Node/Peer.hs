@@ -29,6 +29,7 @@ import qualified Data.Conduit.Binary             as CB (take)
 import           Data.Conduit.Network            (appSink, appSockAddr, appSource,
                                                   clientSettings, runGeneralTCPClient)
 import           Data.Conduit.TMChan             (sourceTBMChan)
+import           Data.Streaming.Network          (AppData, HasReadWrite)
 import           Data.List                       (nub, sort, sortBy)
 import qualified Data.Map                        as M (assocs, elems, fromList, keys,
                                                        lookup, unionWith)
@@ -66,8 +67,10 @@ startPeer ph@PeerHost {..}
     -- Start the peer with the given PID
     startPeerPid pid ph
 
-startIncomingPeer ad
-                  -- Create a new unique ID for this peer
+startIncomingPeer
+    :: (MonadBaseControl IO m, MonadLoggerIO m)
+    => AppData -> NodeT m ()
+startIncomingPeer ad -- Create a new unique ID for this peer
  = do
     pid <- liftIO newUnique
     -- Start the peer with the given PID
@@ -82,8 +85,7 @@ startIncomingPeer ad
 startReconnectPeer
     :: (MonadLoggerIO m, MonadBaseControl IO m)
     => PeerHost -> NodeT m ()
-startReconnectPeer ph@PeerHost {..}
-                   -- Create a new unique ID for this peer
+startReconnectPeer ph@PeerHost {..} -- Create a new unique ID for this peer
  = do
     pid <- liftIO newUnique
     -- Wait if there is a reconnection timeout
@@ -265,6 +267,7 @@ startPeerPid pid ph@PeerHost {..}
                -- Update the network height
                updateNetworkHeight
 
+peerHostFromSockAddr :: SockAddr -> PeerHost
 peerHostFromSockAddr (SockAddrInet portNumber hostAddress) =
     PeerHost
     { ..
@@ -272,9 +275,12 @@ peerHostFromSockAddr (SockAddrInet portNumber hostAddress) =
   where
     peerPort = read $ show portNumber
     peerHost = show hostAddress
+peerHostFromSockAddr _ = error "Must provide SockAddrInet"
 
-startIncomingPeerPid pid ph ad
-                            -- Check if the peer host is banned
+startIncomingPeerPid
+  :: (MonadBaseControl IO m, MonadLoggerIO m, HasReadWrite ad)
+  => PeerId -> PeerHost -> ad -> NodeT m ()
+startIncomingPeerPid pid ph ad -- Check if the peer host is banned
  = do
     banned <- atomicallyNodeT $ isPeerHostBanned ph
     when banned $

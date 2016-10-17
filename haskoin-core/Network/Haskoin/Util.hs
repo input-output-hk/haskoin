@@ -142,15 +142,15 @@ decodeToMaybe bs = eitherToMaybe $ decode bs
 -- | Applies a function to only one element of a list defined by its index.  If
 -- the index is out of the bounds of the list, the original list is returned.
 updateIndex
-    :: Int -- ^ The index of the element to change
-    -> [a] -- ^ The list of elements
+    :: Int      -- ^ The index of the element to change
+    -> [a]      -- ^ The list of elements
     -> (a -> a) -- ^ The function to apply
-    -> [a] -- ^ The result with one element changed
+    -> [a]      -- ^ The result with one element changed
 updateIndex i xs f
-    | i < 0 || i >= length xs = xs
-    | otherwise = l ++ (f h : r)
-  where
-    (l, h:r) = splitAt i xs
+  | i < 0 || i >= length xs = xs
+  | otherwise = case splitAt i xs of
+      (l, h:r) -> l ++ (f h : r)
+      _        -> xs
 
 -- | Use the list @[b]@ as a template and try to match the elements of @[a]@
 -- against it. For each element of @[b]@ return the (first) matching element of

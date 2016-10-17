@@ -673,15 +673,16 @@ data ParsedPath
 -- | Parse derivation path string for extended key.
 -- Forms: “m/0'/2”, “M/2/3/4”.
 parsePath :: String -> Maybe ParsedPath
-parsePath str = do
+parsePath str = case splitOn "/" str of
+  (x:xs) -> do
     res <- concatBip32Segments <$> mapM parseBip32PathIndex xs
     case x of
         "m" -> Just $ ParsedPrv res
         "M" -> Just $ ParsedPub res
         ""  -> Just $ ParsedEmpty res
         _   -> Nothing
-  where
-    (x:xs) = splitOn "/" str
+  _ -> Nothing
+
 
 concatBip32Segments :: [Bip32PathIndex] -> DerivPath
 concatBip32Segments = foldl' appendBip32Segment Deriv

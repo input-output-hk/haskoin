@@ -355,11 +355,14 @@ pushStack :: StackValue -> StackOperation ()
 pushStack v = getStack >>= \s -> putStack (v : s)
 
 popStack :: StackOperation StackValue
-popStack = withStack >>= \(s:ss) -> putStack ss >> return s
+popStack = withStack >>= _popStack
+  where
+    _popStack (s:ss) = putStack ss >> return s
+    _popStack _      = programError "popStack: Empty stack"
 
 popStackN :: Integer -> StackOperation [StackValue]
 popStackN n
-    | n < 0 = programError "popStackN: negative argument"
+    | n < 0  = programError "popStackN: negative argument"
     | n == 0 = return []
     | otherwise = (:) <$> popStack <*> popStackN (n - 1)
 
