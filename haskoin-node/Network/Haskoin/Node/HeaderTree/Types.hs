@@ -1,4 +1,9 @@
-module Network.Haskoin.Node.HeaderTree.Types where
+module Network.Haskoin.Node.HeaderTree.Types
+       ( BlockHeight
+       , NodeHeader (..)
+       , ShortHash
+       , Timestamp
+       , Work) where
 
 import           Data.Serialize        (decode, encode)
 import           Data.String           (fromString)
@@ -6,7 +11,7 @@ import           Data.Word             (Word32, Word64)
 import           Database.Persist      (PersistField (..), PersistValue (..),
                                         SqlType (..))
 import           Database.Persist.Sql  (PersistFieldSql (..))
-import           Network.Haskoin.Block
+import           Network.Haskoin.Block (BlockHeader)
 
 type BlockHeight = Word32
 

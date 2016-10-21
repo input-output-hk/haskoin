@@ -2,38 +2,61 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell       #-}
 
-module Network.Haskoin.Node.Peer where
+module Network.Haskoin.Node.Peer
+       ( disconnectPeer
+       , formatPid
+       , getPeers
+       , getPeersAtHeight
+       , getPeersAtNetHeight
+       , misbehaving
+       , raceTimeout
+       , sendBloomFilter
+       , sendMessage
+       , sendMessageAll
+       , startIncomingPeer
+       , startReconnectPeer
+       , trySendMessage
+       , updateNetworkHeight
+       , waitBloomFilter
+       ) where
 
-import           Control.Concurrent              (killThread, myThreadId, threadDelay)
-import           Control.Concurrent.Async.Lifted (link, race, waitAnyCancel, waitCatch,
-                                                  withAsync)
-import           Control.Concurrent.STM          (STM, atomically, modifyTVar', newTVarIO,
-                                                  readTVar, retry, swapTVar)
-import           Control.Concurrent.STM.TBMChan  (TBMChan, closeTBMChan, newTBMChan,
-                                                  writeTBMChan)
-import           Control.Exception.Lifted        (finally, fromException, throw, throwIO)
-import           Control.Monad                   (forM_, forever, join, unless, when)
-import           Control.Monad.Logger            (MonadLoggerIO, logDebug, logError,
-                                                  logInfo, logWarn)
+import           Control.Concurrent              (killThread, myThreadId,
+                                                  threadDelay)
+import           Control.Concurrent.Async.Lifted (link, race, waitAnyCancel,
+                                                  waitCatch, withAsync)
+import           Control.Concurrent.STM          (STM, atomically, modifyTVar',
+                                                  newTVarIO, readTVar, retry,
+                                                  swapTVar)
+import           Control.Concurrent.STM.TBMChan  (TBMChan, closeTBMChan,
+                                                  newTBMChan, writeTBMChan)
+import           Control.Exception.Lifted        (finally, fromException, throw,
+                                                  throwIO)
+import           Control.Monad                   (forM_, forever, join, unless,
+                                                  when)
+import           Control.Monad.Logger            (MonadLoggerIO, logDebug,
+                                                  logError, logInfo, logWarn)
 import           Control.Monad.Reader            (asks)
 import           Control.Monad.State             (StateT, evalStateT, get, put)
 import           Control.Monad.Trans             (MonadIO, lift, liftIO)
 import           Control.Monad.Trans.Control     (MonadBaseControl)
 import           Data.Bits                       (testBit)
-import qualified Data.ByteString                 as BS (ByteString, append, null)
+import qualified Data.ByteString                 as BS (ByteString, append,
+                                                        null)
 import qualified Data.ByteString.Char8           as C (pack)
 import qualified Data.ByteString.Lazy            as BL (toStrict)
-import           Data.Conduit                    (Conduit, Sink, awaitForever, yield,
-                                                  ($$), ($=))
+import           Data.Conduit                    (Conduit, Sink, awaitForever,
+                                                  yield, ($$), ($=))
 import qualified Data.Conduit.Binary             as CB (take)
-import           Data.Conduit.Network            (appSink, appSockAddr, appSource,
-                                                  clientSettings, runGeneralTCPClient)
+import           Data.Conduit.Network            (appSink, appSockAddr,
+                                                  appSource, clientSettings,
+                                                  runGeneralTCPClient)
 import           Data.Conduit.TMChan             (sourceTBMChan)
 import           Data.Streaming.Network          (AppData, HasReadWrite)
 import           Data.List                       (nub, sort, sortBy)
-import qualified Data.Map                        as M (assocs, elems, fromList, keys,
-                                                       lookup, unionWith)
-import           Data.Maybe                      (fromMaybe, isJust, listToMaybe)
+import qualified Data.Map                        as M (assocs, elems, fromList,
+                                                       keys, lookup, unionWith)
+import           Data.Maybe                      (fromMaybe, isJust,
+                                                  listToMaybe)
 import           Data.Serialize                  (decode, encode)
 import           Data.String.Conversions         (cs)
 import           Data.Text                       (Text, pack)
@@ -41,13 +64,18 @@ import           Data.Time.Clock                 (diffUTCTime, getCurrentTime)
 import           Data.Time.Clock.POSIX           (getPOSIXTime)
 import           Data.Unique                     (hashUnique, newUnique)
 import           Data.Word                       (Word32)
-import           Network.Haskoin.Block
-import           Network.Haskoin.Constants
-import           Network.Haskoin.Node
-import           Network.Haskoin.Node.HeaderTree
-import           Network.Haskoin.Node.STM
-import           Network.Haskoin.Transaction
-import           Network.Haskoin.Util
+import           Network.Haskoin.Block           (BlockHash (..),
+                                                  MerkleBlock (..),
+                                                  blockHashToHex,
+                                                  extractMatches, headerHash,
+                                                  merkleRoot)
+import           Network.Haskoin.Constants       (haskoinUserAgent)
+import qualified Network.Haskoin.Node            as N
+import           Network.Haskoin.Node.HeaderTree (BlockHeight, nodeBlockHeight)
+import qualified Network.Haskoin.Node.STM        as STM
+import           Network.Haskoin.Transaction     (TxHash (..), txHash,
+                                                  txHashToHex)
+import           Network.Haskoin.Util            (encodeHex)
 import           Network.Socket                  (SockAddr (SockAddrInet))
 import           System.Random                   (randomIO)
 
@@ -59,8 +87,8 @@ minProtocolVersion = 70001
 -- and the handshake is performed.
 startPeer
     :: (MonadLoggerIO m, MonadBaseControl IO m)
-    => PeerHost -> NodeT m ()
-startPeer ph@PeerHost {..}
+    => STM.PeerHost -> STM.NodeT m ()
+startPeer ph@STM.PeerHost {..}
           -- Create a new unique ID for this peer
  = do
     pid <- liftIO newUnique
@@ -69,7 +97,7 @@ startPeer ph@PeerHost {..}
 
 startIncomingPeer
     :: (MonadBaseControl IO m, MonadLoggerIO m)
-    => AppData -> NodeT m ()
+    => AppData -> STM.NodeT m ()
 startIncomingPeer ad -- Create a new unique ID for this peer
  = do
     pid <- liftIO newUnique
@@ -84,8 +112,8 @@ startIncomingPeer ad -- Create a new unique ID for this peer
 -- already have a peer connected to the given peer host).
 startReconnectPeer
     :: (MonadLoggerIO m, MonadBaseControl IO m)
-    => PeerHost -> NodeT m ()
-startReconnectPeer ph@PeerHost {..} -- Create a new unique ID for this peer
+    => STM.PeerHost -> STM.NodeT m ()
+startReconnectPeer ph@STM.PeerHost {..} -- Create a new unique ID for this peer
  = do
     pid <- liftIO newUnique
     -- Wait if there is a reconnection timeout
@@ -103,8 +131,8 @@ startReconnectPeer ph@PeerHost {..} -- Create a new unique ID for this peer
                                 ["Peer thread stopped with exception:", show se]
                         return $
                             case fromException se of
-                                Just NodeExceptionBanned    -> False
-                                Just NodeExceptionConnected -> False
+                                Just STM.NodeExceptionBanned    -> False
+                                Just STM.NodeExceptionConnected -> False
                                 _                           -> True
                     Right _ -> do
                         $(logDebug) $ formatPid pid ph "Peer thread stopped"
@@ -114,18 +142,18 @@ startReconnectPeer ph@PeerHost {..} -- Create a new unique ID for this peer
   where
     maybeWaitReconnect pid = do
         reconnect <-
-            atomicallyNodeT $
-            do sessM <- getHostSession ph
+            STM.atomicallyNodeT $
+            do sessM <- STM.getHostSession ph
                case sessM of
-                   Just PeerHostSession {..}
+                   Just STM.PeerHostSession {..}
                    -- Compute the new reconnection time (max 15 minutes)
                     -> do
                        let reconnect = min 900 $ 2 * peerHostSessionReconnect
                        -- Save the reconnection time
-                       modifyHostSession ph $
+                       STM.modifyHostSession ph $
                            \s ->
                                 s
-                                { peerHostSessionReconnect = reconnect
+                                { STM.peerHostSessionReconnect = reconnect
                                 }
                        return reconnect
                    _ -> return 0
@@ -141,27 +169,27 @@ startReconnectPeer ph@PeerHost {..} -- Create a new unique ID for this peer
 -- connection is closed or an exception is raised.
 startPeerPid
     :: (MonadLoggerIO m, MonadBaseControl IO m)
-    => PeerId -> PeerHost -> NodeT m ()
-startPeerPid pid ph@PeerHost {..}
+    => STM.PeerId -> STM.PeerHost -> STM.NodeT m ()
+startPeerPid pid ph@STM.PeerHost {..}
                  -- Check if the peer host is banned
  = do
-    banned <- atomicallyNodeT $ isPeerHostBanned ph
+    banned <- STM.atomicallyNodeT $ isPeerHostBanned ph
     when banned $
         do $(logWarn) $ formatPid pid ph "Failed to start banned host"
-           liftIO $ throwIO NodeExceptionBanned
+           liftIO $ throwIO STM.NodeExceptionBanned
     -- Check if the peer host is already connected
-    connected <- atomicallyNodeT $ isPeerHostConnected ph
+    connected <- STM.atomicallyNodeT $ isPeerHostConnected ph
     when connected $
         do $(logWarn) $ formatPid pid ph "This host is already connected"
-           liftIO $ throwIO NodeExceptionConnected
+           liftIO $ throwIO STM.NodeExceptionConnected
     tid <- liftIO myThreadId
     chan <- liftIO . atomically $ newTBMChan 1024
     mChan <- liftIO . atomically $ newTBMChan 1024
     pings <- liftIO $ newTVarIO []
-    atomicallyNodeT $
-        do newPeerSession
+    STM.atomicallyNodeT $
+        do STM.newPeerSession
                pid
-               PeerSession
+               STM.PeerSession
                { peerSessionConnected = False
                , peerSessionVersion = Nothing
                , peerSessionHeight = 0
@@ -172,9 +200,9 @@ startPeerPid pid ph@PeerHost {..}
                , peerSessionPings = pings
                , peerSessionScore = Nothing
                }
-           newHostSession
+           STM.newHostSession
                ph
-               PeerHostSession
+               STM.PeerHostSession
                { peerHostSessionScore = 0
                , peerHostSessionReconnect = 1
                , peerHostSessionLog = []
@@ -226,13 +254,13 @@ startPeerPid pid ph@PeerHost {..}
                                                 pid
                                                 ph
                                                 "Sending the bloom filter if we have one"
-                                        atomicallyNodeT $
-                                            do bloomM <- readTVarS sharedBloomFilter
+                                        STM.atomicallyNodeT $
+                                            do bloomM <- STM.readTVarS STM.sharedBloomFilter
                                                case bloomM of
                                                    Just (bloom, _) ->
                                                        sendMessage pid $
-                                                       MFilterLoad $
-                                                       FilterLoad bloom
+                                                       N.MFilterLoad $
+                                                       N.FilterLoad bloom
                                                    _ -> return ()
                                         withAsync (peerPing pid ph) $
                                             \a3 ->
@@ -249,17 +277,17 @@ startPeerPid pid ph@PeerHost {..}
                                                     return ()
     cleanupPeer = do
         $(logWarn) $ formatPid pid ph "Peer is closing. Running cleanup..."
-        atomicallyNodeT $
+        STM.atomicallyNodeT $
         -- Remove the header syncing peer if necessary
-            do hPidM <- readTVarS sharedHeaderPeer
-               when (hPidM == Just pid) $ writeTVarS sharedHeaderPeer Nothing
+            do hPidM <- STM.readTVarS STM.sharedHeaderPeer
+               when (hPidM == Just pid) $ STM.writeTVarS STM.sharedHeaderPeer Nothing
                -- Remove the merkle syncing peer if necessary
-               mPidM <- readTVarS sharedMerklePeer
-               when (mPidM == Just pid) $ writeTVarS sharedMerklePeer Nothing
+               mPidM <- STM.readTVarS STM.sharedMerklePeer
+               when (mPidM == Just pid) $ STM.writeTVarS STM.sharedMerklePeer Nothing
                -- Remove the session and close the channels
-               sessM <- removePeerSession pid
+               sessM <- STM.removePeerSession pid
                case sessM of
-                   Just PeerSession {..} ->
+                   Just STM.PeerSession {..} ->
                        lift $
                        do closeTBMChan peerSessionChan
                           closeTBMChan peerSessionMerkleChan
@@ -267,9 +295,9 @@ startPeerPid pid ph@PeerHost {..}
                -- Update the network height
                updateNetworkHeight
 
-peerHostFromSockAddr :: SockAddr -> PeerHost
+peerHostFromSockAddr :: SockAddr -> STM.PeerHost
 peerHostFromSockAddr (SockAddrInet portNumber hostAddress) =
-    PeerHost
+    STM.PeerHost
     { ..
     }
   where
@@ -279,26 +307,26 @@ peerHostFromSockAddr _ = error "Must provide SockAddrInet"
 
 startIncomingPeerPid
   :: (MonadBaseControl IO m, MonadLoggerIO m, HasReadWrite ad)
-  => PeerId -> PeerHost -> ad -> NodeT m ()
+  => STM.PeerId -> STM.PeerHost -> ad -> STM.NodeT m ()
 startIncomingPeerPid pid ph ad -- Check if the peer host is banned
  = do
-    banned <- atomicallyNodeT $ isPeerHostBanned ph
+    banned <- STM.atomicallyNodeT $ isPeerHostBanned ph
     when banned $
         do $(logWarn) $ formatPid pid ph "Failed to start banned host"
-           liftIO $ throwIO NodeExceptionBanned
+           liftIO $ throwIO STM.NodeExceptionBanned
     -- Check if the peer host is already connected
-    connected <- atomicallyNodeT $ isPeerHostConnected ph
+    connected <- STM.atomicallyNodeT $ isPeerHostConnected ph
     when connected $
         do $(logWarn) $ formatPid pid ph "This host is already connected"
-           liftIO $ throwIO NodeExceptionConnected
+           liftIO $ throwIO STM.NodeExceptionConnected
     tid <- liftIO myThreadId
     chan <- liftIO . atomically $ newTBMChan 1024
     mChan <- liftIO . atomically $ newTBMChan 1024
     pings <- liftIO $ newTVarIO []
-    atomicallyNodeT $
-        do newPeerSession
+    STM.atomicallyNodeT $
+        do STM.newPeerSession
                pid
-               PeerSession
+               STM.PeerSession
                { peerSessionConnected = False
                , peerSessionVersion = Nothing
                , peerSessionHeight = 0
@@ -309,15 +337,15 @@ startIncomingPeerPid pid ph ad -- Check if the peer host is banned
                , peerSessionPings = pings
                , peerSessionScore = Nothing
                }
-           newHostSession
+           STM.newHostSession
                ph
-               PeerHostSession
+               STM.PeerHostSession
                { peerHostSessionScore = 0
                , peerHostSessionReconnect = 1
                , peerHostSessionLog = []
                }
     $(logDebug) $ formatPid pid ph "Starting a new incoming client TCP handler"
-    (peerTCPClient chan) `finally` cleanupPeer
+    peerTCPClient chan `finally` cleanupPeer
     return ()
   where
     peerTCPClient chan
@@ -361,13 +389,13 @@ startIncomingPeerPid pid ph ad -- Check if the peer host is banned
                                                 pid
                                                 ph
                                                 "Sending the bloom filter if we have one"
-                                        atomicallyNodeT $
-                                            do bloomM <- readTVarS sharedBloomFilter
+                                        STM.atomicallyNodeT $
+                                            do bloomM <- STM.readTVarS STM.sharedBloomFilter
                                                case bloomM of
                                                    Just (bloom, _) ->
                                                        sendMessage pid $
-                                                       MFilterLoad $
-                                                       FilterLoad bloom
+                                                       N.MFilterLoad $
+                                                       N.FilterLoad bloom
                                                    _ -> return ()
                                         withAsync (peerPing pid ph) $
                                             \a3 ->
@@ -384,17 +412,17 @@ startIncomingPeerPid pid ph ad -- Check if the peer host is banned
                                                     return ()
     cleanupPeer = do
         $(logWarn) $ formatPid pid ph "Peer is closing. Running cleanup..."
-        atomicallyNodeT $
+        STM.atomicallyNodeT $
         -- Remove the header syncing peer if necessary
-            do hPidM <- readTVarS sharedHeaderPeer
-               when (hPidM == Just pid) $ writeTVarS sharedHeaderPeer Nothing
+            do hPidM <- STM.readTVarS STM.sharedHeaderPeer
+               when (hPidM == Just pid) $ STM.writeTVarS STM.sharedHeaderPeer Nothing
                -- Remove the merkle syncing peer if necessary
-               mPidM <- readTVarS sharedMerklePeer
-               when (mPidM == Just pid) $ writeTVarS sharedMerklePeer Nothing
+               mPidM <- STM.readTVarS STM.sharedMerklePeer
+               when (mPidM == Just pid) $ STM.writeTVarS STM.sharedMerklePeer Nothing
                -- Remove the session and close the channels
-               sessM <- removePeerSession pid
+               sessM <- STM.removePeerSession pid
                case sessM of
-                   Just PeerSession {..} ->
+                   Just STM.PeerSession {..} ->
                        lift $
                        do closeTBMChan peerSessionChan
                           closeTBMChan peerSessionMerkleChan
@@ -403,30 +431,30 @@ startIncomingPeerPid pid ph ad -- Check if the peer host is banned
                updateNetworkHeight
 
 -- Return True if the PeerHost is banned
-isPeerHostBanned :: PeerHost -> NodeT STM Bool
+isPeerHostBanned :: STM.PeerHost -> STM.NodeT STM Bool
 isPeerHostBanned ph = do
-    hostMap <- readTVarS sharedHostMap
+    hostMap <- STM.readTVarS STM.sharedHostMap
     case M.lookup ph hostMap of
         Just sessTVar -> do
             sess <- lift $ readTVar sessTVar
-            return $ isHostScoreBanned $ peerHostSessionScore sess
+            return $ STM.isHostScoreBanned $ STM.peerHostSessionScore sess
         _ -> return False
 
 -- Returns True if we have a peer connected to that PeerHost already
-isPeerHostConnected :: PeerHost -> NodeT STM Bool
+isPeerHostConnected :: STM.PeerHost -> STM.NodeT STM Bool
 isPeerHostConnected ph = do
-    peerMap <- readTVarS sharedPeerMap
+    peerMap <- STM.readTVarS STM.sharedPeerMap
     sess <- lift $ mapM readTVar $ M.elems peerMap
-    return $ ph `elem` map peerSessionHost sess
+    return $ ph `elem` map STM.peerSessionHost sess
 
 -- | Decode messages sent from the remote host and send them to the peers main
 -- message queue for processing. If we receive invalid messages, this function
 -- will also notify the PeerManager about a misbehaving remote host.
 decodeMessage
     :: (MonadLoggerIO m, MonadBaseControl IO m)
-    => PeerId
-    -> PeerHost
-    -> Sink BS.ByteString (StateT (Maybe (MerkleBlock, MerkleTxs)) (NodeT m)) ()
+    => STM.PeerId
+    -> STM.PeerHost
+    -> Sink BS.ByteString (StateT (Maybe (MerkleBlock, STM.MerkleTxs)) (STM.NodeT m)) ()
 decodeMessage pid ph
                   -- Message header is always 24 bytes
  = do
@@ -438,14 +466,14 @@ decodeMessage pid ph
         do case decode headerBytes of
                Left err ->
                    lift . lift $
-                   misbehaving pid ph moderateDoS $
+                   misbehaving pid ph STM.moderateDoS $
                    unwords
                        [ "Could not decode message header:"
                        , err
                        , "Bytes:"
                        , cs (encodeHex headerBytes)
                        ]
-               Right (MessageHeader _ cmd len _) -> do
+               Right (N.MessageHeader _ cmd len _) -> do
                    $(logDebug) $
                        formatPid pid ph $
                        unwords ["Received message header of type", show cmd]
@@ -453,7 +481,7 @@ decodeMessage pid ph
                    case decode $ headerBytes `BS.append` payloadBytes of
                        Left err ->
                            lift . lift $
-                           misbehaving pid ph moderateDoS $
+                           misbehaving pid ph STM.moderateDoS $
                            unwords ["Could not decode message payload:", err]
                        Right msg -> lift $ processMessage pid ph msg
            decodeMessage pid ph
@@ -461,84 +489,84 @@ decodeMessage pid ph
 -- Handle a message from a peer
 processMessage
     :: (MonadLoggerIO m, MonadBaseControl IO m)
-    => PeerId
-    -> PeerHost
-    -> Message
-    -> StateT (Maybe (MerkleBlock, MerkleTxs)) (NodeT m) ()
+    => STM.PeerId
+    -> STM.PeerHost
+    -> N.Message
+    -> StateT (Maybe (MerkleBlock, STM.MerkleTxs)) (STM.NodeT m) ()
 processMessage pid ph msg =
     checkMerkleEnd >>
     case msg of
-        MVersion v ->
+        N.MVersion v ->
             lift $
             do $(logDebug) $ formatPid pid ph "Processing MVersion message"
-               join . atomicallyNodeT $
-                   do oldVerM <- peerSessionVersion <$> getPeerSession pid
+               join . STM.atomicallyNodeT $
+                   do oldVerM <- STM.peerSessionVersion <$> STM.getPeerSession pid
                       case oldVerM of
                           Just _ -> do
                               _ <-
                                   trySendMessage pid $
-                                  MReject $
-                                  reject
-                                      MCVersion
-                                      RejectDuplicate
+                                  N.MReject $
+                                  N.reject
+                                      N.MCVersion
+                                      N.RejectDuplicate
                                       "Duplicate version message"
                               return $
                                   misbehaving
                                       pid
                                       ph
-                                      minorDoS
+                                      STM.minorDoS
                                       "Duplicate version message"
                           Nothing -> do
-                              modifyPeerSession pid $
+                              STM.modifyPeerSession pid $
                                   \s ->
                                        s
-                                       { peerSessionVersion = Just v
+                                       { STM.peerSessionVersion = Just v
                                        }
                               return $ return ()
                $(logDebug) $ formatPid pid ph "Done processing MVersion message"
-        MPing (Ping nonce) ->
+        N.MPing (N.Ping nonce) ->
             lift $
             do $(logDebug) $ formatPid pid ph "Processing MPing message"
                -- Just reply to the Ping with a Pong message
-               _ <- atomicallyNodeT $ trySendMessage pid $ MPong $ Pong nonce
+               _ <- STM.atomicallyNodeT $ trySendMessage pid $ N.MPong $ N.Pong nonce
                return ()
-        MPong (Pong nonce) ->
+        N.MPong (N.Pong nonce) ->
             lift $
             do $(logDebug) $ formatPid pid ph "Processing MPong message"
-               atomicallyNodeT $
-                   do PeerSession {..} <- getPeerSession pid
+               STM.atomicallyNodeT $
+                   do STM.PeerSession {..} <- STM.getPeerSession pid
                       -- Add the Pong response time
                       lift $ modifyTVar' peerSessionPings (++ [nonce])
-        MHeaders h ->
+        N.MHeaders h ->
             lift $
             do $(logDebug) $ formatPid pid ph "Processing MHeaders message"
-               _ <- atomicallyNodeT $ tryPutTMVarS sharedHeaders (pid, h)
+               _ <- STM.atomicallyNodeT $ STM.tryPutTMVarS STM.sharedHeaders (pid, h)
                return ()
-        MInv inv ->
+        N.MInv inv ->
             lift $
             do $(logDebug) $ formatPid pid ph "Processing MInv message"
                processInvMessage pid ph inv
-        MGetData (GetData inv) -> do
+        N.MGetData (N.GetData inv) -> do
             $(logDebug) $ formatPid pid ph "Processing MGetData message"
-            let txlist = filter ((== InvTx) . invType) inv
-                txids = nub $ map (TxHash . invHash) txlist
+            let txlist = filter ((== N.InvTx) . N.invType) inv
+                txids = nub $ map (TxHash . N.invHash) txlist
             $(logDebug) $
                 formatPid pid ph $
                 unlines $
                 "Received GetData request for transactions" :
                 map (("  " ++) . cs . txHashToHex) txids
             -- Add the txids to the GetData request map
-            mapTVar <- asks sharedTxGetData
+            mapTVar <- asks STM.sharedTxGetData
             liftIO . atomically $
                 modifyTVar' mapTVar $
                 \datMap ->
                      let newMap =
                              M.fromList $ map (\tid -> (tid, [(pid, ph)])) txids
                      in M.unionWith (\x -> nub . (x ++)) newMap datMap
-        MTx tx -> do
+        N.MTx tx -> do
             $(logDebug) $ formatPid pid ph "Processing MTx message"
-            PeerSession {..} <- lift . atomicallyNodeT $ getPeerSession pid
-            txChan <- lift $ asks sharedTxChan
+            STM.PeerSession {..} <- lift . STM.atomicallyNodeT $ STM.getPeerSession pid
+            txChan <- lift $ asks STM.sharedTxChan
             get >>=
                 \merkleM ->
                      case merkleM of
@@ -573,20 +601,20 @@ processMessage pid ph msg =
                                      ]
                              liftIO . atomically $
                                  writeTBMChan txChan (pid, ph, tx)
-        MMempool ->
+        N.MMempool ->
             lift $
             do $(logDebug) $ formatPid pid ph "Processing MMempool message"
-               atomicallyNodeT $
-                   do mempool <- readTVarS sharedMempool
+               STM.atomicallyNodeT $
+                   do mempool <- STM.readTVarS STM.sharedMempool
                       let invVectors =
-                              map (InvVector InvTx . getTxHash) (M.keys mempool)
-                      sendMessage pid $ MInv $ Inv invVectors
-        MMerkleBlock mb@(MerkleBlock mHead ntx hs fs) -> do
+                              map (N.InvVector N.InvTx . getTxHash) (M.keys mempool)
+                      sendMessage pid $ N.MInv $ N.Inv invVectors
+        N.MMerkleBlock mb@(MerkleBlock mHead ntx hs fs) -> do
             $(logDebug) $ formatPid pid ph "Processing MMerkleBlock message"
             case extractMatches fs hs (fromIntegral ntx) of
                 Left err ->
                     lift $
-                    misbehaving pid ph severeDoS $
+                    misbehaving pid ph STM.severeDoS $
                     unwords ["Received an invalid merkle block:", err]
                 Right (decodedRoot, mTxs)
                 -- Make sure that the merkle roots match
@@ -609,8 +637,8 @@ processMessage pid ph msg =
                                          ]
                             if null mTxs
                                -- Deliver the merkle block
-                                then lift . atomicallyNodeT $
-                                     do PeerSession {..} <- getPeerSession pid
+                                then lift . STM.atomicallyNodeT $
+                                     do STM.PeerSession {..} <- STM.getPeerSession pid
                                         lift $
                                             writeTBMChan peerSessionMerkleChan $
                                             Left (mb, [])
@@ -620,7 +648,7 @@ processMessage pid ph msg =
                              misbehaving
                                  pid
                                  ph
-                                 severeDoS
+                                 STM.severeDoS
                                  "Received a merkle block with an invalid merkle root"
         _ -> return () -- Ignore other requests
   where
@@ -630,26 +658,26 @@ processMessage pid ph msg =
         \merkleM ->
              case merkleM of
                  Just (mb, mTxs) -> do
-                     lift . atomicallyNodeT $
-                         do PeerSession {..} <- getPeerSession pid
+                     lift . STM.atomicallyNodeT $
+                         do STM.PeerSession {..} <- STM.getPeerSession pid
                             lift $
                                 writeTBMChan peerSessionMerkleChan $
                                 Left (mb, mTxs)
                      put Nothing
                  _ -> return ()
-    isTxMsg (MTx _) = True
+    isTxMsg (N.MTx _) = True
     isTxMsg _       = False
 
 processInvMessage
     :: (MonadLoggerIO m, MonadBaseControl IO m)
-    => PeerId -> PeerHost -> Inv -> NodeT m ()
-processInvMessage pid ph (Inv vs) =
+    => STM.PeerId -> STM.PeerHost -> N.Inv -> STM.NodeT m ()
+processInvMessage pid ph (N.Inv vs) =
     case tickleM of
         Just tickle -> do
             $(logDebug) $
                 formatPid pid ph $
                 unwords ["Received block tickle", cs $ blockHashToHex tickle]
-            tickleChan <- asks sharedTickleChan
+            tickleChan <- asks STM.sharedTickleChan
             liftIO $ atomically $ writeTBMChan tickleChan (pid, ph, tickle)
         _ -> do
             unless (null txlist) $
@@ -663,9 +691,9 @@ processInvMessage pid ph (Inv vs) =
                                 ]
                    -- We simply request the transactions.
                    -- TODO: Should we do something more elaborate here?
-                   atomicallyNodeT $
+                   STM.atomicallyNodeT $
                        sendMessage pid $
-                       MGetData $ GetData $ map (InvVector InvTx . getTxHash) txlist
+                       N.MGetData $ N.GetData $ map (N.InvVector N.InvTx . getTxHash) txlist
             unless (null blocklist) $
                 do $(logDebug) $
                        formatPid pid ph $
@@ -683,20 +711,20 @@ processInvMessage pid ph (Inv vs) =
                     else Nothing
             _ -> Nothing
     txlist :: [TxHash]
-    txlist = map (TxHash . invHash) $ filter ((== InvTx) . invType) vs
+    txlist = map (TxHash . N.invHash) $ filter ((== N.InvTx) . N.invType) vs
     blocklist :: [BlockHash]
-    blocklist = map (BlockHash . invHash) $ filter ((== InvBlock) . invType) vs
+    blocklist = map (BlockHash . N.invHash) $ filter ((== N.InvBlock) . N.invType) vs
 
 -- Single blockhash INV is a tickle
 -- | Encode message that are being sent to the remote host.
 encodeMessage
     :: MonadLoggerIO m
-    => Conduit Message (NodeT m) BS.ByteString
+    => Conduit N.Message (STM.NodeT m) BS.ByteString
 encodeMessage = awaitForever $ yield . encode
 
 peerPing
     :: (MonadLoggerIO m, MonadBaseControl IO m)
-    => PeerId -> PeerHost -> NodeT m ()
+    => STM.PeerId -> STM.PeerHost -> STM.NodeT m ()
 peerPing pid ph =
     forever $
     do $(logDebug) $
@@ -704,12 +732,12 @@ peerPing pid ph =
                pid
                ph
                "Waiting until the peer is available for sending pings..."
-       atomicallyNodeT $ waitPeerAvailable pid
+       STM.atomicallyNodeT $ waitPeerAvailable pid
        nonce <- liftIO randomIO
        nonceTVar <-
-           atomicallyNodeT $
-           do PeerSession {..} <- getPeerSession pid
-              sendMessage pid $ MPing $ Ping nonce
+           STM.atomicallyNodeT $
+           do STM.PeerSession {..} <- STM.getPeerSession pid
+              sendMessage pid $ N.MPing $ N.Ping nonce
               return peerSessionPings
        $(logDebug) $
            formatPid pid ph $ unwords ["Waiting for Ping nonce", show nonce]
@@ -720,16 +748,16 @@ peerPing pid ph =
            Right _ -> do
                endTime <- liftIO getCurrentTime
                (diff, score) <-
-                   atomicallyNodeT $
-                   do PeerSession {..} <- getPeerSession pid
+                   STM.atomicallyNodeT $
+                   do STM.PeerSession {..} <- STM.getPeerSession pid
                       -- Compute the ping time and the new score
                       let diff = diffUTCTime endTime startTime
                           score = 0.5 * diff + 0.5 * fromMaybe diff peerSessionScore
                       -- Save the score in the peer session unless the peer is busy
-                      modifyPeerSession pid $
+                      STM.modifyPeerSession pid $
                           \s ->
                                s
-                               { peerSessionScore = Just score
+                               { STM.peerSessionScore = Just score
                                }
                       return (diff, score)
                $(logDebug) $
@@ -765,76 +793,76 @@ peerPing pid ph =
         disconnectPeer pid ph
 
 -- Wait for the Pong message of our Ping nonce to arrive
-isBloomDisabled :: Version -> Bool
-isBloomDisabled ver = version ver >= 70011 && not (services ver `testBit` 2)
+isBloomDisabled :: N.Version -> Bool
+isBloomDisabled ver = N.version ver >= 70011 && not (N.services ver `testBit` 2)
 
 peerHandshake
     :: (MonadLoggerIO m, MonadBaseControl IO m)
-    => PeerId -> PeerHost -> TBMChan Message -> NodeT m ()
+    => STM.PeerId -> STM.PeerHost -> TBMChan N.Message -> STM.NodeT m ()
 peerHandshake pid ph chan = do
     ourVer <- buildVersion
     $(logDebug) $ formatPid pid ph "Sending our version message"
-    liftIO . atomically $ writeTBMChan chan $ MVersion ourVer
+    liftIO . atomically $ writeTBMChan chan $ N.MVersion ourVer
     -- Wait for the peer version message to arrive
     $(logDebug) $ formatPid pid ph "Waiting for the peers version message..."
-    peerVer <- atomicallyNodeT $ waitPeerVersion pid
+    peerVer <- STM.atomicallyNodeT $ waitPeerVersion pid
     $(logInfo) $
         formatPid pid ph $
         unlines
             [ unwords
                   [ "Connected to peer host"
-                  , show $ naAddress $ addrSend peerVer
+                  , show $ N.naAddress $ N.addrSend peerVer
                   ]
-            , unwords ["  version  :", show $ version peerVer]
-            , unwords ["  subVer   :", show $ userAgent peerVer]
-            , unwords ["  services :", show $ services peerVer]
-            , unwords ["  time     :", show $ timestamp peerVer]
-            , unwords ["  blocks   :", show $ startHeight peerVer]
+            , unwords ["  version  :", show $ N.version peerVer]
+            , unwords ["  subVer   :", show $ N.userAgent peerVer]
+            , unwords ["  services :", show $ N.services peerVer]
+            , unwords ["  time     :", show $ N.timestamp peerVer]
+            , unwords ["  blocks   :", show $ N.startHeight peerVer]
             ]
     -- Check the protocol version
     go peerVer $
-        do atomicallyNodeT $
+        do STM.atomicallyNodeT $
            -- Save the peers height and update the network height
-               do modifyPeerSession pid $
+               do STM.modifyPeerSession pid $
                       \s ->
                            s
-                           { peerSessionHeight = startHeight peerVer
-                           , peerSessionConnected = True
+                           { STM.peerSessionHeight = N.startHeight peerVer
+                           , STM.peerSessionConnected = True
                            }
                   updateNetworkHeight
                   -- Reset the reconnection timer (exponential backoff)
-                  modifyHostSession ph $
+                  STM.modifyHostSession ph $
                       \s ->
                            s
-                           { peerHostSessionReconnect = 1
+                           { STM.peerHostSessionReconnect = 1
                            }
                   -- ACK the version message
-                  lift $ writeTBMChan chan MVerAck
+                  lift $ writeTBMChan chan N.MVerAck
            $(logDebug) $ formatPid pid ph "Handshake complete"
   where
     go ver action
-        | version ver < minProtocolVersion =
-            misbehaving pid ph severeDoS $
+        | N.version ver < minProtocolVersion =
+            misbehaving pid ph STM.severeDoS $
             unwords
                 [ "Connected to a peer speaking protocol version"
-                , show $ version ver
+                , show $ N.version ver
                 , "but we require at least"
                 , show minProtocolVersion
                 ]
         | isBloomDisabled ver =
-            misbehaving pid ph severeDoS "Peer does not support bloom filters"
+            misbehaving pid ph STM.severeDoS "Peer does not support bloom filters"
         | otherwise = action
     buildVersion
     -- TODO: Get our correct IP here
      = do
-        let add = NetworkAddress 1 $ SockAddrInet 0 0
-            ua = VarString haskoinUserAgent
+        let add = N.NetworkAddress 1 $ SockAddrInet 0 0
+            ua = N.VarString haskoinUserAgent
         time <- floor <$> liftIO getPOSIXTime
         rdmn <- liftIO randomIO -- nonce
         height <-
-            nodeBlockHeight <$> atomicallyNodeT (readTVarS sharedBestHeader)
+            nodeBlockHeight <$> STM.atomicallyNodeT (STM.readTVarS STM.sharedBestHeader)
         return
-            Version
+            N.Version
             { version = 70011
             , services = 5
             , timestamp = time
@@ -847,9 +875,9 @@ peerHandshake pid ph chan = do
             }
 
 -- Wait for the version message of a peer and return it
-waitPeerVersion :: PeerId -> NodeT STM Version
+waitPeerVersion :: STM.PeerId -> STM.NodeT STM N.Version
 waitPeerVersion pid = do
-    PeerSession {..} <- getPeerSession pid
+    STM.PeerSession {..} <- STM.getPeerSession pid
     case peerSessionVersion of
         Just ver -> return ver
         _        -> lift retry
@@ -858,87 +886,89 @@ waitPeerVersion pid = do
 -- Unless the peer is banned, the peer will try to reconnect.
 disconnectPeer
     :: (MonadLoggerIO m)
-    => PeerId -> PeerHost -> NodeT m ()
+    => STM.PeerId -> STM.PeerHost -> STM.NodeT m ()
 disconnectPeer pid ph = do
-    sessM <- atomicallyNodeT $ tryGetPeerSession pid
+    sessM <- STM.atomicallyNodeT $ STM.tryGetPeerSession pid
     case sessM of
-        Just PeerSession {..} -> do
+        Just STM.PeerSession {..} -> do
             $(logDebug) $ formatPid pid ph "Killing the peer thread"
             liftIO $ killThread peerSessionThreadId
         _ -> return ()
 
 {- Peer utility functions -}
 --- Wait until the given peer is not syncing headers or merkle blocks
-waitPeerAvailable :: PeerId -> NodeT STM ()
+waitPeerAvailable :: STM.PeerId -> STM.NodeT STM ()
 waitPeerAvailable pid = do
-    hPidM <- readTVarS sharedHeaderPeer
-    mPidM <- readTVarS sharedMerklePeer
+    hPidM <- STM.readTVarS STM.sharedHeaderPeer
+    mPidM <- STM.readTVarS STM.sharedMerklePeer
     when (Just pid `elem` [hPidM, mPidM]) $ lift retry
 
 -- Wait for a non-empty bloom filter to be available
-waitBloomFilter :: NodeT STM BloomFilter
-waitBloomFilter = maybe (lift retry) (return . fst) =<< readTVarS sharedBloomFilter
+waitBloomFilter :: STM.NodeT STM N.BloomFilter
+waitBloomFilter =
+    maybe (lift retry) (return . fst) =<<
+    STM.readTVarS STM.sharedBloomFilter
 
-sendBloomFilter :: BloomFilter -> Int -> NodeT STM ()
+sendBloomFilter :: N.BloomFilter -> Int -> STM.NodeT STM ()
 sendBloomFilter bloom elems =
-    unless (isBloomEmpty bloom) $
-    do oldBloomM <- readTVarS sharedBloomFilter
+    unless (N.isBloomEmpty bloom) $
+    do oldBloomM <- STM.readTVarS STM.sharedBloomFilter
        let oldElems = maybe 0 snd oldBloomM
        -- Only update the bloom filter if the number of elements is larger
        when (elems > oldElems) $
-           do writeTVarS sharedBloomFilter $ Just (bloom, elems)
-              sendMessageAll $ MFilterLoad $ FilterLoad bloom
+           do STM.writeTVarS STM.sharedBloomFilter $ Just (bloom, elems)
+              sendMessageAll $ N.MFilterLoad $ N.FilterLoad bloom
 
 -- Returns the median height of all the peers
-getMedianHeight :: NodeT STM BlockHeight
+getMedianHeight :: STM.NodeT STM BlockHeight
 getMedianHeight = do
-    hs <- map (peerSessionHeight . snd) <$> getConnectedPeers
+    hs <- map (STM.peerSessionHeight . snd) <$> getConnectedPeers
     let (_, ms) = splitAt (length hs `div` 2) $ sort hs
     return $ fromMaybe 0 $ listToMaybe ms
 
 -- Set the network height to the median height of all peers.
-updateNetworkHeight :: NodeT STM ()
-updateNetworkHeight = writeTVarS sharedNetworkHeight =<< getMedianHeight
+updateNetworkHeight :: STM.NodeT STM ()
+updateNetworkHeight = STM.writeTVarS STM.sharedNetworkHeight =<< getMedianHeight
 
-getPeers :: NodeT STM [(PeerId, PeerSession)]
+getPeers :: STM.NodeT STM [(STM.PeerId, STM.PeerSession)]
 getPeers = do
-    peerMap <- readTVarS sharedPeerMap
+    peerMap <- STM.readTVarS STM.sharedPeerMap
     lift $ mapM f $ M.assocs peerMap
   where
     f (pid, sess) = (,) pid <$> readTVar sess
 
-getConnectedPeers :: NodeT STM [(PeerId, PeerSession)]
-getConnectedPeers = filter (peerSessionConnected . snd) <$> getPeers
+getConnectedPeers :: STM.NodeT STM [(STM.PeerId, STM.PeerSession)]
+getConnectedPeers = filter (STM.peerSessionConnected . snd) <$> getPeers
 
 -- Returns a peer that is connected, at the network height and
 -- with the best score.
-getPeersAtNetHeight :: NodeT STM [(PeerId, PeerSession)]
+getPeersAtNetHeight :: STM.NodeT STM [(STM.PeerId, STM.PeerSession)]
 getPeersAtNetHeight = do
-    height <- readTVarS sharedNetworkHeight
+    height <- STM.readTVarS STM.sharedNetworkHeight
     getPeersAtHeight (== height)
 
 -- Find the current network height
 -- Find the best peer at the given height
-getPeersAtHeight :: (BlockHeight -> Bool) -> NodeT STM [(PeerId, PeerSession)]
+getPeersAtHeight :: (BlockHeight -> Bool) -> STM.NodeT STM [(STM.PeerId, STM.PeerSession)]
 getPeersAtHeight cmpHeight = do
     peers <- filter f <$> getPeers
     -- Choose the peer with the best score
     return $ sortBy s peers
   where
     f (_, p) =
-        peerSessionConnected p && -- Only connected peers
-        isJust (peerSessionScore p) && -- Only peers with scores
-        cmpHeight (peerSessionHeight p) -- Only peers at the required height
-    s (_, a) (_, b) = peerSessionScore a `compare` peerSessionScore b
+        STM.peerSessionConnected p && -- Only connected peers
+        isJust (STM.peerSessionScore p) && -- Only peers with scores
+        cmpHeight (STM.peerSessionHeight p) -- Only peers at the required height
+    s (_, a) (_, b) = STM.peerSessionScore a `compare` STM.peerSessionScore b
 
 -- Send a message to a peer only if it is connected. It returns True on
 -- success.
-trySendMessage :: PeerId -> Message -> NodeT STM Bool
+trySendMessage :: STM.PeerId -> N.Message -> STM.NodeT STM Bool
 trySendMessage pid msg = do
-    sessM <- tryGetPeerSession pid
+    sessM <- STM.tryGetPeerSession pid
     lift $
         case sessM of
-            Just PeerSession {..} ->
+            Just STM.PeerSession {..} ->
                 if peerSessionConnected
                     then writeTBMChan peerSessionChan msg >> return True
                     else return False -- The peer is not yet connected
@@ -946,41 +976,41 @@ trySendMessage pid msg = do
 
 -- Send a message to a peer only if it is connected. It returns True on
 -- success. Throws an exception if the peer does not exist or is not connected.
-sendMessage :: PeerId -> Message -> NodeT STM ()
+sendMessage :: STM.PeerId -> N.Message -> STM.NodeT STM ()
 sendMessage pid msg = do
-    PeerSession {..} <- getPeerSession pid
+    STM.PeerSession {..} <- STM.getPeerSession pid
     if peerSessionConnected
         then lift $ writeTBMChan peerSessionChan msg
-        else throw $ NodeExceptionPeerNotConnected $ ShowPeerId pid
+        else throw $ STM.NodeExceptionPeerNotConnected $ STM.ShowPeerId pid
 
 -- Send a message to all connected peers.
-sendMessageAll :: Message -> NodeT STM ()
+sendMessageAll :: N.Message -> STM.NodeT STM ()
 sendMessageAll msg = do
-    peerMap <- readTVarS sharedPeerMap
+    peerMap <- STM.readTVarS STM.sharedPeerMap
     forM_ (M.keys peerMap) $ \pid -> trySendMessage pid msg
 
-getNetworkHeight :: NodeT STM BlockHeight
-getNetworkHeight = readTVarS sharedNetworkHeight
+getNetworkHeight :: STM.NodeT STM BlockHeight
+getNetworkHeight = STM.readTVarS STM.sharedNetworkHeight
 
 misbehaving
     :: (MonadLoggerIO m)
-    => PeerId
-    -> PeerHost
-    -> (PeerHostScore -> PeerHostScore)
+    => STM.PeerId
+    -> STM.PeerHost
+    -> (STM.PeerHostScore -> STM.PeerHostScore)
     -> String
-    -> NodeT m ()
+    -> STM.NodeT m ()
 misbehaving pid ph f msg = do
     sessM <-
-        atomicallyNodeT $
-        do modifyHostSession ph $
+        STM.atomicallyNodeT $
+        do STM.modifyHostSession ph $
                \s ->
                     s
-                    { peerHostSessionScore = f $! peerHostSessionScore s
-                    , peerHostSessionLog = msg : peerHostSessionLog s
+                    { STM.peerHostSessionScore = f $! STM.peerHostSessionScore s
+                    , STM.peerHostSessionLog = msg : STM.peerHostSessionLog s
                     }
-           getHostSession ph
+           STM.getHostSession ph
     case sessM of
-        Just PeerHostSession {..} -> do
+        Just STM.PeerHostSession {..} -> do
             $(logWarn) $
                 formatPid pid ph $
                 unlines
@@ -988,7 +1018,7 @@ misbehaving pid ph f msg = do
                     , unwords ["  Score:", show peerHostSessionScore]
                     , unwords ["  Reason:", msg]
                     ]
-            when (isHostScoreBanned peerHostSessionScore) $ disconnectPeer pid ph
+            when (STM.isHostScoreBanned peerHostSessionScore) $ disconnectPeer pid ph
         _ -> return ()
 
 {- Run header tree database action -}
@@ -1010,8 +1040,8 @@ raceTimeout sec cleanup action = do
         Right res -> return $ Right res
         Left _    -> fmap Left cleanup
 
-formatPid :: PeerId -> PeerHost -> String -> Text
+formatPid :: STM.PeerId -> STM.PeerHost -> String -> Text
 formatPid pid ph str =
     pack $
     concat
-        ["[Peer ", show $ hashUnique pid, " | ", peerHostString ph, "] ", str]
+        ["[Peer ", show $ hashUnique pid, " | ", STM.peerHostString ph, "] ", str]

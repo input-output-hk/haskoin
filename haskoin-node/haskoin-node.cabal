@@ -82,7 +82,8 @@ library
                  , time                     >= 1.4          && < 1.7
                  , streaming-commons        >= 0.1          && < 0.2
 
-    ghc-options: -Wall
+    ghc-options: -threaded -rtsopts -with-rtsopts=-TN -Wall -O2
+                 -fno-warn-orphans
 
 test-suite test-haskoin-node
     type:              exitcode-stdio-1.0
@@ -107,5 +108,5 @@ test-suite test-haskoin-node
                  , test-framework-quickcheck2     >= 0.3        && < 0.4
                  , test-framework-hunit           >= 0.3        && < 0.4
 
-    ghc-options: -Wall
+    ghc-options:  -threaded -rtsopts -with-rtsopts=-TN -Wall -fno-warn-orphans
     hs-source-dirs: tests

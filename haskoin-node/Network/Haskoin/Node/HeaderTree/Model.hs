@@ -6,13 +6,20 @@
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 
-module Network.Haskoin.Node.HeaderTree.Model where
+module Network.Haskoin.Node.HeaderTree.Model
+       ( EntityField (..)
+       , NodeBlock (..)
+       , migrateHeaderTree
+       ) where
 
 import           Data.Word                             (Word32)
+import           Database.Persist.Class                (EntityField (..))
 import           Database.Persist.TH                   (mkMigrate, mkPersist,
                                                         persistLowerCase, share,
                                                         sqlSettings)
-import           Network.Haskoin.Node.HeaderTree.Types
+import           Network.Haskoin.Node.HeaderTree.Types (BlockHeight,
+                                                        NodeHeader (..),
+                                                        ShortHash, Work)
 
 share
     [mkPersist sqlSettings, mkMigrate "migrateHeaderTree"]

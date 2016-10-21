@@ -4,40 +4,86 @@
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE TemplateHaskell       #-}
 
-module Network.Haskoin.Node.STM where
+module Network.Haskoin.Node.STM
+       ( MerkleTxs
+       , NodeException (..)
+       , NodeStatus (..)
+       , NodeT
+       , PeerHost (..)
+       , PeerHostScore
+       , PeerHostSession (..)
+       , PeerId
+       , PeerSession (..)
+       , PeerStatus (..)
+       , SharedNodeState (..)
+       , ShowPeerId (..)
+       , atomicallyNodeT
+       , catchAny
+       , getHostSession
+       , getNodeState
+       , getPeerSession
+       , isHostScoreBanned
+       , minorDoS
+       , moderateDoS
+       , modifyHostSession
+       , modifyPeerSession
+       , newPeerSession
+       , newHostSession
+       , orElseNodeT
+       , peerHostString
+       , readTVarS
+       , removePeerSession
+       , runNodeT
+       , runSqlNodeT
+       , severeDoS
+       , takeTMVarS
+       , tryGetPeerSession
+       , tryPutTMVarS
+       , writeTVarS
+       ) where
 
 import           Control.Concurrent              (ThreadId)
 import           Control.Concurrent.STM          (STM, TMVar, TVar, atomically,
                                                   isEmptyTMVar, modifyTVar',
-                                                  newEmptyTMVarIO, newTVar, newTVarIO,
-                                                  orElse, putTMVar, readTMVar, readTVar,
-                                                  takeTMVar, tryPutTMVar, tryReadTMVar,
-                                                  writeTVar)
+                                                  newEmptyTMVarIO, newTVar,
+                                                  newTVarIO, orElse, putTMVar,
+                                                  readTMVar, readTVar,
+                                                  takeTMVar, tryPutTMVar,
+                                                  tryReadTMVar, writeTVar)
 import           Control.Concurrent.STM.Lock     (Lock)
 import qualified Control.Concurrent.STM.Lock     as Lock (new)
-import           Control.Concurrent.STM.TBMChan  (TBMChan, closeTBMChan, newTBMChan)
+import           Control.Concurrent.STM.TBMChan  (TBMChan, closeTBMChan,
+                                                  newTBMChan)
 import           Control.DeepSeq                 (NFData (..))
-import           Control.Exception.Lifted        (Exception, SomeException, catch,
+import           Control.Exception.Lifted        (Exception, SomeException,
+                                                  catch,
                                                   fromException, throw)
 import           Control.Monad                   ((<=<))
 import           Control.Monad.Logger            (MonadLoggerIO, logDebug)
-import           Control.Monad.Reader            (ReaderT, ask, asks, runReaderT)
+import           Control.Monad.Reader            (ReaderT, ask, asks,
+                                                  runReaderT)
 import           Control.Monad.Trans             (MonadIO, lift, liftIO)
 import           Control.Monad.Trans.Control     (MonadBaseControl)
 import           Data.Aeson.TH                   (deriveJSON)
-import qualified Data.Map.Strict                 as M (Map, delete, insert, lookup)
+import qualified Data.Map.Strict                 as M (Map, delete, insert,
+                                                       lookup)
 import           Data.Maybe                      (isJust)
 import           Data.Time.Clock                 (NominalDiffTime)
 import           Data.Typeable                   (Typeable)
 import           Data.Unique                     (Unique, hashUnique)
 import           Data.Word                       (Word32, Word64)
-import           Database.Persist.Sql            (ConnectionPool, SqlBackend, SqlPersistT,
-                                                  runSqlConn, runSqlPool)
-import           Network.Haskoin.Block
-import           Network.Haskoin.Node
-import           Network.Haskoin.Node.HeaderTree
-import           Network.Haskoin.Transaction
-import           Network.Haskoin.Util
+import           Database.Persist.Sql            (ConnectionPool, SqlBackend,
+                                                  SqlPersistT, runSqlConn,
+                                                  runSqlPool)
+import           Network.Haskoin.Block           (BlockHash, Headers,
+                                                  MerkleBlock)
+import           Network.Haskoin.Node            (BloomFilter, Message, Version)
+import           Network.Haskoin.Node.HeaderTree (BlockHeight, NodeBlock,
+                                                  Timestamp, genesisBlock,
+                                                  getBestBlock,
+                                                  initHeaderTree)
+import           Network.Haskoin.Transaction     (Tx, TxHash)
+import           Network.Haskoin.Util            (dropFieldLabel)
 
 {- Type aliases -}
 type MerkleTxs = [TxHash]

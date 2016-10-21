@@ -3,73 +3,94 @@
 {-# LANGUAGE RankNTypes            #-}
 
 module Network.Haskoin.Node.HeaderTree
-  ( BlockChainAction(..)
-  , BlockHeight
-  , NodeBlock
-  , Timestamp
-  , initHeaderTree
-  , migrateHeaderTree
-  , getBestBlock
-  , getHeads
-  , getBlockByHash
-  , getParentBlock
-  , getBlockWindow
-  , getBlockAfterTime
-  , getChildBlocks
-  , getBlockByHeight
-  , getBlocksByHeight
-  , getBlocksFromHeight
-  , getBlocksAtHeight
-  , putBlock
-  , putBlocks
-  , genesisBlock
-  , splitBlock
-  , splitChains
-  , nodeBlock
-  , nodeBlockHeight
-  , nodeHash
-  , nodeHeader
-  , nodePrev
-  , nodeTimestamp
-  , isBestChain
-  , isChainReorg
-  , isSideChain
-  , isKnownChain
-  , connectHeader
-  , connectHeaders
-  , blockLocator
-  , pruneChain
-  ) where
+       ( BlockChainAction(..)
+       , BlockHeight
+       , NodeBlock
+       , Timestamp
+       , initHeaderTree
+       , migrateHeaderTree
+       , getBestBlock
+       , getHeads
+       , getBlockByHash
+       , getParentBlock
+       , getBlockWindow
+       , getBlockAfterTime
+       , getChildBlocks
+       , getBlockByHeight
+       , getBlocksByHeight
+       , getBlocksFromHeight
+       , getBlocksAtHeight
+       , putBlock
+       , putBlocks
+       , genesisBlock
+       , splitBlock
+       , splitChains
+       , nodeBlock
+       , nodeBlockHeight
+       , nodeHash
+       , nodeHeader
+       , nodePrev
+       , nodeTimestamp
+       , isBestChain
+       , isChainReorg
+       , isSideChain
+       , isKnownChain
+       , connectHeader
+       , connectHeaders
+       , blockLocator
+       , pruneChain
+       ) where
 
-import           Control.Monad                         (foldM, forM, unless, when, (<=<))
+import           Control.Monad                         (foldM, forM, unless,
+                                                        when, (<=<))
 import           Control.Monad.State                   (evalStateT, get, put)
 import           Control.Monad.Trans                   (MonadIO, lift)
-import           Control.Monad.Trans.Either            (EitherT, left, runEitherT)
+import           Control.Monad.Trans.Either            (EitherT, left,
+                                                        runEitherT)
 import           Data.Bits                             (shiftL)
 import qualified Data.ByteString                       as BS (reverse, take)
 import           Data.Function                         (on)
 import           Data.List                             (find, maximumBy, sort)
-import           Data.Maybe                            (fromMaybe, isNothing, listToMaybe,
-                                                        mapMaybe)
+import           Data.Maybe                            (fromMaybe, isNothing,
+                                                        listToMaybe, mapMaybe)
 import           Data.Serialize                        (decode, encode)
 import           Data.String.Conversions               (cs)
 import           Data.Word                             (Word32)
-import           Database.Esqueleto                    (Esqueleto, Value, asc, delete,
-                                                        from, groupBy, in_, insertMany_,
-                                                        limit, max_, not_, orderBy,
-                                                        select, set, unValue, update, val,
-                                                        valList, where_, (!=.), (&&.),
-                                                        (<=.), (=.), (==.), (>.), (>=.),
-                                                        (^.), (||.))
+import           Database.Esqueleto                    (Esqueleto, Value, asc,
+                                                        delete, from, groupBy,
+                                                        in_, insertMany_, limit,
+                                                        max_, not_, orderBy,
+                                                        select, set, unValue,
+                                                        update, val, valList,
+                                                        where_, (!=.), (&&.),
+                                                        (<=.), (=.), (==.),
+                                                        (>.), (>=.), (^.),
+                                                        (||.))
 import           Database.Persist                      (Entity (..), insert_)
 import           Database.Persist.Sql                  (SqlPersistT)
-import           Network.Haskoin.Block
-import           Network.Haskoin.Constants
-import           Network.Haskoin.Crypto
-import           Network.Haskoin.Node.Checkpoints
-import           Network.Haskoin.Node.HeaderTree.Model
-import           Network.Haskoin.Node.HeaderTree.Types
-import           Network.Haskoin.Util
+import           Network.Haskoin.Block                 (BlockHash (..),
+                                                        BlockHeader (..),
+                                                        BlockLocator,
+                                                        blockHashToHex,
+                                                        decodeCompact,
+                                                        encodeCompact)
+import           Network.Haskoin.Constants             (allowMinDifficultyBlocks,
+                                                        genesisHeader,
+                                                        networkName,
+                                                        powLimit,
+                                                        targetSpacing,
+                                                        targetTimespan)
+import           Network.Haskoin.Crypto                (Hash256 (..))
+import           Network.Haskoin.Node.Checkpoints      (checkpointList,
+                                                        verifyCheckpoint)
+import           Network.Haskoin.Node.HeaderTree.Model (EntityField (..),
+                                                        NodeBlock (..),
+                                                        migrateHeaderTree)
+import           Network.Haskoin.Node.HeaderTree.Types (BlockHeight,
+                                                        NodeHeader (..),
+                                                        ShortHash, Timestamp)
+import           Network.Haskoin.Util                  (bsToInteger,
+                                                        fromRight, liftEither)
 
 data BlockChainAction
     = BestChain { actionNodes :: ![NodeBlock]}
