@@ -51,13 +51,13 @@ import           Data.Conduit.Network            (appSink, appSockAddr,
                                                   appSource, clientSettings,
                                                   runGeneralTCPClient)
 import           Data.Conduit.TMChan             (sourceTBMChan)
-import           Data.Streaming.Network          (AppData, HasReadWrite)
 import           Data.List                       (nub, sort, sortBy)
 import qualified Data.Map                        as M (assocs, elems, fromList,
                                                        keys, lookup, unionWith)
 import           Data.Maybe                      (fromMaybe, isJust,
                                                   listToMaybe)
 import           Data.Serialize                  (decode, encode)
+import           Data.Streaming.Network          (AppData, HasReadWrite)
 import           Data.String.Conversions         (cs)
 import           Data.Text                       (Text, pack)
 import           Data.Time.Clock                 (diffUTCTime, getCurrentTime)

@@ -264,22 +264,13 @@ connectHeaders best bhs ts =
     validChain _        = False
 
 -- | Returns True if the action is a best chain.
-isBestChain :: BlockChainAction -> Bool
+isBestChain, isChainReorg, isSideChain, isKnownChain :: BlockChainAction -> Bool
 isBestChain (BestChain _) = True
 isBestChain _             = False
-
--- | Returns True if the action is a chain reorg.
-isChainReorg :: BlockChainAction -> Bool
 isChainReorg ChainReorg {} = True
 isChainReorg _             = False
-
--- | Returns True if the action is a side chain.
-isSideChain :: BlockChainAction -> Bool
 isSideChain (SideChain _) = True
 isSideChain _             = False
-
--- | Returns True if the action is a known chain.
-isKnownChain :: BlockChainAction -> Bool
 isKnownChain (KnownChain _) = True
 isKnownChain _              = False
 
@@ -307,13 +298,13 @@ blockLocator node = do
 
 -- | Verify block header conforms to protocol.
 verifyBlockHeader
-    :: NodeBlock -- ^ Parent block header
-    -> [Timestamp] -- ^ Timestamps of previous 11 blocks
-    -> Timestamp -- ^ Previous difficulty change
+    :: NodeBlock    -- ^ Parent block header
+    -> [Timestamp]  -- ^ Timestamps of previous 11 blocks
+    -> Timestamp    -- ^ Previous difficulty change
     -> Maybe Word32 -- ^ Height of most recent checkpoint
-    -> MinWork -- ^ Last MinWork (e.g. Testnet3)
-    -> Timestamp -- ^ Current time
-    -> BlockHeader -- ^ Block header to validate
+    -> MinWork      -- ^ Last MinWork (e.g. Testnet3)
+    -> Timestamp    -- ^ Current time
+    -> BlockHeader  -- ^ Block header to validate
     -> Either String ()
 -- TODO: Add DOS return values
 verifyBlockHeader par mts dt cp mw ts bh = do
