@@ -1,18 +1,25 @@
 module Network.Haskoin.Wallet.Block
-  ( blockTxs
-  , mainChain
-  ) where
+       ( blockTxs
+       , mainChain
+       ) where
 
 import           Control.Exception                  (throw)
 import           Control.Monad.Catch                (MonadThrow, throwM)
 import           Control.Monad.Trans                (MonadIO)
 import           Data.Maybe                         (fromMaybe)
 import           Database.Persist.Sql               (SqlPersistT)
-import           Network.Haskoin.Block
-import           Network.Haskoin.Node.HeaderTree
-import           Network.Haskoin.Wallet.Model
-import           Network.Haskoin.Wallet.Transaction
-import           Network.Haskoin.Wallet.Types
+import           Network.Haskoin.Block              (BlockHash)
+import           Network.Haskoin.Node.HeaderTree    (BlockHeight, NodeBlock,
+                                                     getBlockByHash,
+                                                     getBlockByHeight,
+                                                     getBlocksFromHeight,
+                                                     nodeBlockHeight, nodeHash,
+                                                     splitBlock)
+import           Network.Haskoin.Wallet.Model       (WalletTx (..))
+import           Network.Haskoin.Wallet.Transaction (walletBestBlock)
+import           Network.Haskoin.Wallet.Types       (ListRequest (..),
+                                                     ListResult (..),
+                                                     WalletException (..))
 
 mainChain
     :: (MonadIO m, MonadThrow m)

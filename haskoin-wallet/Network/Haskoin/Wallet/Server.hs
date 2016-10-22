@@ -3,77 +3,115 @@
 {-# LANGUAGE TemplateHaskell       #-}
 
 module Network.Haskoin.Wallet.Server
-  ( runSPVServer
-  , stopSPVServer
-  ) where
+       ( runSPVServer
+       , stopSPVServer
+       ) where
 
-import           Control.Concurrent.Async.Lifted       (async, link, waitAnyCancel)
+import           Control.Concurrent.Async.Lifted       (async, link,
+                                                        waitAnyCancel)
 import           Control.Concurrent.STM                (atomically, retry)
-import           Control.Concurrent.STM.TBMChan        (TBMChan, newTBMChan, readTBMChan)
+import           Control.Concurrent.STM.TBMChan        (TBMChan, newTBMChan,
+                                                        readTBMChan)
 import           Control.Concurrent.STM.TVar           (readTVarIO, writeTVar)
 import           Control.DeepSeq                       (NFData (..))
 import           Control.Exception.Lifted              (ErrorCall (..),
-                                                        SomeException (..), catches)
+                                                        SomeException (..),
+                                                        catches)
 import qualified Control.Exception.Lifted              as E (Handler (..))
-import           Control.Monad                         (forM_, forever, unless, void,
+import           Control.Monad                         (forM_, forever, unless,
+                                                        void,
                                                         when)
 import           Control.Monad.Base                    (MonadBase)
 import           Control.Monad.Catch                   (MonadThrow)
-import           Control.Monad.Logger                  (MonadLoggerIO, filterLogger,
-                                                        logDebug, logError, logInfo,
-                                                        logWarn, runStdoutLoggingT)
+import           Control.Monad.Logger                  (MonadLoggerIO,
+                                                        filterLogger, logDebug,
+                                                        logError, logInfo,
+                                                        logWarn,
+                                                        runStdoutLoggingT)
 import           Control.Monad.Reader                  (ask)
 import           Control.Monad.Trans                   (lift, liftIO)
 import           Control.Monad.Trans.Control           (MonadBaseControl,
                                                         liftBaseOpDiscard)
-import           Control.Monad.Trans.Resource          (MonadResource, runResourceT)
+import           Control.Monad.Trans.Resource          (MonadResource,
+                                                        runResourceT)
 import           Data.Aeson                            (Value, decode, encode)
 import           Data.ByteString                       (ByteString)
-import qualified Data.ByteString.Lazy                  as BL (fromStrict, toStrict)
-import           Data.Conduit                          (await, awaitForever, ($$))
+import qualified Data.ByteString.Lazy                  as BL (fromStrict,
+                                                              toStrict)
+import           Data.Conduit                          (await, awaitForever,
+                                                        ($$))
 import qualified Data.HashMap.Strict                   as H (lookup)
 import           Data.List.NonEmpty                    (NonEmpty ((:|)))
-import qualified Data.Map.Strict                       as M (Map, assocs, elems, empty,
-                                                             fromListWith, insert,
-                                                             notMember, null, unionWith)
-import           Data.Maybe                            (fromJust, fromMaybe, isJust)
+import qualified Data.Map.Strict                       as M (Map, assocs, elems,
+                                                             empty,
+                                                             fromListWith,
+                                                             insert, notMember,
+                                                             null, unionWith)
+import           Data.Maybe                            (fromJust, fromMaybe,
+                                                        isJust)
 import           Data.Monoid                           ((<>))
 import           Data.String.Conversions               (cs)
 import           Data.Text                             (pack)
 import           Data.Word                             (Word32)
-import           Database.Esqueleto                    (from, val, where_, (&&.), (<=.),
-                                                        (==.), (^.))
-import           Database.Persist.Sql                  (ConnectionPool, runMigration)
-import           Network.Haskoin.Block                 (MerkleBlock (..), blockHashToHex,
+import           Database.Esqueleto                    (from, val, where_,
+                                                        (&&.), (<=.), (==.),
+                                                        (^.))
+import           Database.Persist.Sql                  (ConnectionPool,
+                                                        runMigration)
+import           Network.Haskoin.Block                 (MerkleBlock (..),
+                                                        blockHashToHex,
                                                         headerHash)
 import           Network.Haskoin.Constants             (networkName)
-import           Network.Haskoin.Node.BlockChain       (areBlocksSynced, broadcastTxs,
-                                                        handleGetData, merkleDownload,
+import           Network.Haskoin.Node.BlockChain       (areBlocksSynced,
+                                                        broadcastTxs,
+                                                        handleGetData,
+                                                        merkleDownload,
                                                         rescanTs, startSPVNode,
-                                                        startServerNode, txSource)
-import           Network.Haskoin.Node.HeaderTree
-import           Network.Haskoin.Node.Peer
-import           Network.Haskoin.Node.STM
-import           Network.Haskoin.Transaction           (Tx (..), TxHash, txHashToHex,
-                                                        verifyTx)
-import           Network.Haskoin.Wallet.Accounts       (firstAddrTime, getBloomFilter,
+                                                        startServerNode,
+                                                        txSource)
+import           Network.Haskoin.Node.HeaderTree       (BlockChainAction (..),
+                                                        migrateHeaderTree,
+                                                        nodeBlockHeight,
+                                                        nodeHash)
+import           Network.Haskoin.Node.Peer             (sendBloomFilter,
+                                                        waitBloomFilter)
+import qualified Network.Haskoin.Node.STM              as STM
+import           Network.Haskoin.Transaction           (Tx (..), TxHash,
+                                                        txHashToHex, verifyTx)
+import           Network.Haskoin.Wallet.Accounts       (firstAddrTime,
+                                                        getBloomFilter,
                                                         initWallet)
 import           Network.Haskoin.Wallet.Database       (getDatabasePool)
-import           Network.Haskoin.Wallet.Model          (AccountId, EntityField (..),
-                                                        migrateWallet, walletAddrAccount)
+import           Network.Haskoin.Wallet.Model          (AccountId,
+                                                        EntityField (..),
+                                                        migrateWallet,
+                                                        walletAddrAccount)
 import qualified Network.Haskoin.Wallet.Server.Handler as SH
-import           Network.Haskoin.Wallet.Settings
-import           Network.Haskoin.Wallet.Transaction
-import           Network.Haskoin.Wallet.Types
-import           System.Posix.Daemon                   (Redirection (ToFile), killAndWait,
+import           Network.Haskoin.Wallet.Settings       (Config (..),
+                                                        SPVMode (..))
+import           Network.Haskoin.Wallet.Transaction    (getPendingTxs, getTx,
+                                                        importMerkles,
+                                                        importNetTx,
+                                                        walletBestBlock)
+import           Network.Haskoin.Wallet.Types          (JsonTx (..), Notif (..),
+                                                        WalletException (..),
+                                                        WalletResponse (..),
+                                                        WalletRequest (..),
+                                                        btcNodeHost,
+                                                        btcNodePort, join2,
+                                                        splitSelect)
+import           System.Posix.Daemon                   (Redirection (ToFile),
+                                                        killAndWait,
                                                         runDetached)
-import           System.ZMQ4                           (Context, KeyFormat (..), Pub (..),
-                                                        Rep (..), Socket, bind, receive,
-                                                        receiveMulti, restrict, send,
-                                                        sendMulti, setCurveSecretKey,
-                                                        setCurveServer, setLinger,
-                                                        withContext, withSocket,
-                                                        z85Decode)
+import           System.ZMQ4                           (Context, KeyFormat (..),
+                                                        Pub (..), Rep (..),
+                                                        Socket, bind, receive,
+                                                        receiveMulti, restrict,
+                                                        send, sendMulti,
+                                                        setCurveSecretKey,
+                                                        setCurveServer,
+                                                        setLinger, withContext,
+                                                        withSocket, z85Decode)
 
 data EventSession = EventSession
     { eventBatchSize :: !Int
@@ -102,25 +140,25 @@ runSPVServer cfg =
            SPVOnline
            -- Initialize the node state
             -> do
-               node <- getNodeState (Right pool)
+               node <- STM.getNodeState (Right pool)
                -- Spin up the node threads
                let session = SH.HandlerSession cfg pool (Just node) notif
                as <-
                    mapM
                        async
                        -- Start the SPV node
-                       [ runNodeT (spv pool) node
-                       , runNodeT (spvs pool) node
+                       [ STM.runNodeT (spv pool) node
+                       , STM.runNodeT (spvs pool) node
                          -- Merkle block synchronization
                          -- , runNodeT (runMerkleSync pool notif) node
                          -- Import solo transactions as they arrive from peers
-                       , runNodeT (txSource $$ processTx pool notif) node
+                       , STM.runNodeT (txSource $$ processTx pool notif) node
                          -- Respond to transaction GetData requests
-                       , runNodeT
+                       , STM.runNodeT
                              (handleGetData $ (`SH.runDBPool` pool) . getTx)
                              node
                          -- Re-broadcast pending transactions
-                       , runNodeT (broadcastPendingTxs pool) node
+                       , STM.runNodeT (broadcastPendingTxs pool) node
                          -- Run the ZMQ API server
                        , runWalletApp session
                        ]
@@ -143,12 +181,12 @@ runSPVServer cfg =
         fromMaybe
             (error $ "BTC nodes for " ++ networkName ++ " not found")
             (pack networkName `H.lookup` configBTCNodes cfg)
-    hosts = map (\x -> PeerHost (btcNodeHost x) (btcNodePort x)) nodes
+    hosts = map (\x -> STM.PeerHost (btcNodeHost x) (btcNodePort x)) nodes
     -- Run the merkle syncing thread
     runMerkleSync pool notif = do
         $(logDebug) "Waiting for a valid bloom filter for merkle downloads..."
         -- Only download merkles if we have a valid bloom filter
-        _ <- atomicallyNodeT waitBloomFilter
+        _ <- STM.atomicallyNodeT waitBloomFilter
         -- Provide a fast catchup time if we are at height 0
         fcM <-
             fmap (fmap SH.adjustFCTime) $
@@ -157,21 +195,21 @@ runSPVServer cfg =
                if h == 0
                    then firstAddrTime
                    else return Nothing
-        maybe (return ()) (atomicallyNodeT . rescanTs) fcM
+        maybe (return ()) (STM.atomicallyNodeT . rescanTs) fcM
         -- Start the merkle sync
         merkleSync pool 500 notif
     -- Run a thread that will re-broadcast pending transactions
     broadcastPendingTxs pool =
         forever $
-        do (hash, _) <- runSqlNodeT walletBestBlock
+        do (hash, _) <- STM.runSqlNodeT walletBestBlock
            -- Wait until we are synced
-           atomicallyNodeT $
+           STM.atomicallyNodeT $
                do synced <- areBlocksSynced hash
                   unless synced $ lift retry
            -- Send an INV for those transactions to all peers
            broadcastTxs =<< SH.runDBPool (getPendingTxs 0) pool
            -- Wait until we are not synced
-           atomicallyNodeT $
+           STM.atomicallyNodeT $
                do synced <- areBlocksSynced hash
                   when synced $ lift retry
     processTx pool notif =
@@ -192,11 +230,11 @@ runSPVServer cfg =
                     pack $
                     unwords ["Inserting into mempool", cs (txHashToHex tid)]
                 -- Insert incoming transaction into the mempool (TODO: verification)
-                atomicallyNodeT $ -- TODO: fix style
-                    do mempool <- readTVarS sharedMempool
+                STM.atomicallyNodeT $ -- TODO: fix style
+                    do mempool <- STM.readTVarS STM.sharedMempool
                        --let newMempool = M.insertWith (flip const) (txHash tx) tx mempool
                        let newMempool = M.insert tid tx mempool -- TODO: what if transaction exists already?
-                       writeTVarS sharedMempool newMempool
+                       STM.writeTVarS STM.sharedMempool newMempool
 
 initDatabase
     :: (MonadBaseControl IO m, MonadLoggerIO m)
@@ -218,11 +256,13 @@ initDatabase cfg
     -- Return the semaphrone and the connection pool
     return pool
 
+-- | Accepts a Transaction into the Node's mempool
+
 acceptTx
     :: (MonadLoggerIO m, MonadBaseControl IO m)
-    => TxHash -> Tx -> NodeT m SharedNodeState
+    => TxHash -> Tx -> STM.NodeT m STM.SharedNodeState
 acceptTx tid tx = do
-    SharedNodeState {..} <- ask
+    STM.SharedNodeState {..} <- ask
     mempool <- liftIO $ readTVarIO sharedMempool
     let newMempool =
             if acceptableTx mempool
@@ -230,7 +270,7 @@ acceptTx tid tx = do
                 else mempool
     liftIO $ atomically $ writeTVar sharedMempool newMempool
     return
-        SharedNodeState
+        STM.SharedNodeState
         { ..
         }
   where
@@ -238,7 +278,7 @@ acceptTx tid tx = do
 
 merkleSync
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m, MonadResource m)
-    => ConnectionPool -> Word32 -> TBMChan Notif -> NodeT m ()
+    => ConnectionPool -> Word32 -> TBMChan Notif -> STM.NodeT m ()
 merkleSync pool bSize notif
                       -- Get our best block
  = do
@@ -261,7 +301,7 @@ merkleSync pool bSize notif
                    , "Sending our bloom filter."
                    ]
            (bloom, elems, _) <- SH.runDBPool getBloomFilter pool
-           atomicallyNodeT $ sendBloomFilter bloom elems
+           STM.atomicallyNodeT $ sendBloomFilter bloom elems
     -- Check if we should rescan the current merkle batch
     $(logDebug) "Checking if we need to rescan the current batch..."
     rescan <- shouldRescan aMap

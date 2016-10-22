@@ -2,32 +2,32 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module Network.Haskoin.Wallet.Accounts
-  ( initWallet
-  , accounts
-  , newAccount
-  , renameAccount
-  , addAccountKeys
-  , getAccount
-  , isMultisigAccount
-  , isReadAccount
-  , isCompleteAccount
-  , getAddress
-  , addressesAll
-  , addresses
-  , addressList
-  , unusedAddresses
-  , addressCount
-  , setAddrLabel
-  , addressPrvKey
-  , useAddress
-  , generateAddrs
-  , setAccountGap
-  , firstAddrTime
-  , getPathRedeem
-  , getPathPubKey
-  , getBloomFilter
-  , subSelectAddrCount
-  ) where
+       ( initWallet
+       , accounts
+       , newAccount
+       , renameAccount
+       , addAccountKeys
+       , getAccount
+       , isMultisigAccount
+       , isReadAccount
+       , isCompleteAccount
+       , getAddress
+       , addressesAll
+       , addresses
+       , addressList
+       , unusedAddresses
+       , addressCount
+       , setAddrLabel
+       , addressPrvKey
+       , useAddress
+       , generateAddrs
+       , setAccountGap
+       , firstAddrTime
+       , getPathRedeem
+       , getPathPubKey
+       , getBloomFilter
+       , subSelectAddrCount
+       ) where
 
 -- *Database Wallet
 -- *Database Accounts
@@ -43,8 +43,8 @@ import           Control.Monad.Trans             (MonadIO, liftIO)
 import           Control.Monad.Trans.Resource    (MonadResource)
 
 import           Data.List                       (nub)
-import           Data.Maybe                      (isJust, isNothing, listToMaybe,
-                                                  mapMaybe)
+import           Data.Maybe                      (isJust, isNothing,
+                                                  listToMaybe, mapMaybe)
 import           Data.Serialize                  (encode)
 import           Data.String.Conversions         (cs)
 import           Data.Text                       (Text, unpack)
@@ -52,33 +52,39 @@ import           Data.Time.Clock                 (getCurrentTime)
 import           Data.Time.Clock.POSIX           (utcTimeToPOSIXSeconds)
 import           Data.Word                       (Word32)
 
-import           Database.Esqueleto              (Entity (..), SqlExpr, SqlPersistT,
-                                                  Value (..), asc, case_, count,
-                                                  countDistinct, countRows, desc, else_,
-                                                  from, get, insertUnique, insert_, limit,
-                                                  max_, offset, orderBy, select,
-                                                  sub_select, then_, unValue, val, when_,
-                                                  where_, (&&.), (-.), (<.), (==.), (>.),
-                                                  (^.))
-import qualified Database.Persist                as P (update, updateWhere, (=.))
+import           Database.Esqueleto              (Entity (..), SqlExpr,
+                                                  SqlPersistT, Value (..), asc,
+                                                  case_, count, countDistinct,
+                                                  countRows, desc, else_, from,
+                                                  get, insertUnique, insert_,
+                                                  limit, max_, offset, orderBy,
+                                                  select, sub_select, then_,
+                                                  unValue, val, when_, where_,
+                                                  (&&.), (-.), (<.), (==.),
+                                                  (>.), (^.))
+import qualified Database.Persist                as P (update, updateWhere,
+                                                       (=.))
 
-import           Network.Haskoin.Block
-import           Network.Haskoin.Constants
-import           Network.Haskoin.Crypto
-import           Network.Haskoin.Node
-import           Network.Haskoin.Node.HeaderTree
-import           Network.Haskoin.Script
-import           Network.Haskoin.Util
+import           Network.Haskoin.Block           (headerHash)
+import           Network.Haskoin.Constants       (genesisHeader)
+import qualified Network.Haskoin.Crypto          as CY
+import           Network.Haskoin.Node            (BloomFilter, BloomFlags (..),
+                                                  bloomCreate, bloomInsert)
+import           Network.Haskoin.Node.HeaderTree (Timestamp)
+import           Network.Haskoin.Script          (RedeemScript,
+                                                  ScriptOutput (..),
+                                                  encodeOutputBS, sortMulSig)
+import           Network.Haskoin.Util            (fromRight)
 
-import           Network.Haskoin.Wallet.Model
-import           Network.Haskoin.Wallet.Types
+import qualified Network.Haskoin.Wallet.Model    as WM
+import qualified  Network.Haskoin.Wallet.Types   as WT
 
 {- Initialization -}
 initWallet
     :: MonadIO m
     => Double -> SqlPersistT m ()
 initWallet fpRate = do
-    prevConfigRes <- select $ from $ \c -> return $ count $ c ^. WalletStateId
+    prevConfigRes <- select $ from $ \c -> return $ count $ c ^. WM.WalletStateId
     let cnt = maybe 0 unValue $ listToMaybe prevConfigRes
     when (cnt == (0 :: Int)) $
         do time <- liftIO getCurrentTime
@@ -86,7 +92,7 @@ initWallet fpRate = do
            -- TODO: Compute a random nonce
            let bloom = bloomCreate (filterLen 0) fpRate 0 BloomUpdateNone
            insert_
-               WalletState
+               WM.WalletState
                { walletStateHeight = 0
                , walletStateBlock = headerHash genesisHeader
                , walletStateBloomFilter = bloom
@@ -100,35 +106,35 @@ initWallet fpRate = do
 -- | Fetch all accounts
 accounts
     :: (MonadIO m, MonadThrow m, MonadBase IO m, MonadResource m)
-    => ListRequest -> SqlPersistT m ([Account], Word32)
-accounts ListRequest {..} = do
-    cntRes <- select $ from $ \acc -> return $ countDistinct $ acc ^. AccountId
+    => WT.ListRequest -> SqlPersistT m ([WM.Account], Word32)
+accounts WT.ListRequest {..} = do
+    cntRes <- select $ from $ \acc -> return $ countDistinct $ acc ^. WM.AccountId
     let cnt = maybe 0 unValue $ listToMaybe cntRes
     when (listOffset > 0 && listOffset >= cnt) $
-        throw $ WalletException "Offset beyond end of data set"
+        throw $ WT.WalletException "Offset beyond end of data set"
     res <-
         fmap (map entityVal) $
         select $
         from $
         \acc -> do
-            limitOffset listLimit listOffset
+            WT.limitOffset listLimit listOffset
             return acc
     return (res, cnt)
 
 initGap
     :: (MonadIO m, MonadThrow m, MonadBase IO m, MonadResource m)
-    => Entity Account -> SqlPersistT m ()
+    => Entity WM.Account -> SqlPersistT m ()
 initGap accE = do
-    void $ createAddrs accE AddressExternal 20
-    void $ createAddrs accE AddressInternal 20
+    void $ createAddrs accE WT.AddressExternal 20
+    void $ createAddrs accE WT.AddressInternal 20
 
 -- | Create a new account
 newAccount
     :: (MonadIO m, MonadThrow m, MonadBase IO m, MonadResource m)
-    => NewAccount -> SqlPersistT m (Entity Account, Maybe Mnemonic)
-newAccount NewAccount {..} = do
+    => WT.NewAccount -> SqlPersistT m (Entity WM.Account, Maybe CY.Mnemonic)
+newAccount WT.NewAccount {..} = do
     unless (validAccountType newAccountType) $
-        throwM $ WalletException "Invalid account type"
+        throwM $ WT.WalletException "Invalid account type"
     let gen =
             isNothing newAccountMnemonic && isNothing newAccountMaster && null newAccountKeys
     (mnemonicM, masterM, keys) <-
@@ -136,39 +142,39 @@ newAccount NewAccount {..} = do
             then do
                 when (isJust newAccountMaster || isJust newAccountMnemonic) $
                     throwM $
-                    WalletException
+                    WT.WalletException
                         "Master key or mnemonic not allowed for generate"
-                ent <- liftIO $ getEntropy 16
-                let ms = fromRight $ toMnemonic ent
-                    root = makeXPrvKey $ fromRight $ mnemonicToSeed "" ms
+                ent <- liftIO $ CY.getEntropy 16
+                let ms = fromRight $ CY.toMnemonic ent
+                    root = CY.makeXPrvKey $ fromRight $ CY.mnemonicToSeed "" ms
                     master =
                         case newAccountDeriv of
                             Nothing -> root
-                            Just d  -> derivePath d root
-                    keys = deriveXPubKey master : newAccountKeys
+                            Just d  -> CY.derivePath d root
+                    keys = CY.deriveXPubKey master : newAccountKeys
                 return (Just ms, Just master, keys)
             else case newAccountMnemonic of
                      Just ms -> do
                          when (isJust newAccountMaster) $
                              throwM $
-                             WalletException
+                             WT.WalletException
                                  "Cannot provide both master key and mnemonic"
                          root <-
-                             case mnemonicToSeed "" (cs ms) of
-                                 Right s -> return $ makeXPrvKey s
+                             case CY.mnemonicToSeed "" (cs ms) of
+                                 Right s -> return $ CY.makeXPrvKey s
                                  Left _ ->
                                      throwM $
-                                     WalletException "Mnemonic sentence invalid"
+                                     WT.WalletException "Mnemonic sentence invalid"
                          let master =
                                  case newAccountDeriv of
                                      Nothing -> root
-                                     Just d  -> derivePath d root
-                             keys = deriveXPubKey master : newAccountKeys
+                                     Just d  -> CY.derivePath d root
+                             keys = CY.deriveXPubKey master : newAccountKeys
                          return (Nothing, Just master, keys)
                      Nothing ->
                          case newAccountMaster of
                              Just master -> do
-                                 let keys = deriveXPubKey master : newAccountKeys
+                                 let keys = CY.deriveXPubKey master : newAccountKeys
                                  return (Nothing, newAccountMaster, keys)
                              Nothing ->
                                  return
@@ -176,7 +182,7 @@ newAccount NewAccount {..} = do
     -- Build the account
     now <- liftIO getCurrentTime
     let acc =
-            Account
+            WM.Account
             { accountName = newAccountName
             , accountType = newAccountType
             , accountMaster =
@@ -190,12 +196,12 @@ newAccount NewAccount {..} = do
             }
     -- Check if all the keys are valid
     unless (isValidAccKeys acc) $
-        throwM $ WalletException "Invalid account keys"
+        throwM $ WT.WalletException "Invalid account keys"
     -- Insert our account in the database
     let canSetGap = isCompleteAccount acc
         newAcc =
             acc
-            { accountGap =
+            { WM.accountGap =
                 if canSetGap
                     then 10
                     else 0
@@ -211,87 +217,87 @@ newAccount NewAccount {..} = do
                      when canSetGap $ initGap accE
                      return (accE, mnemonicM)
                  -- The account already exists
-                 Nothing -> throwM $ WalletException "Account already exists"
+                 Nothing -> throwM $ WT.WalletException "Account already exists"
 
 renameAccount
     :: (MonadIO m, MonadThrow m, MonadBase IO m, MonadResource m)
-    => Entity Account -> AccountName -> SqlPersistT m Account
+    => Entity WM.Account -> WT.AccountName -> SqlPersistT m WM.Account
 renameAccount (Entity ai acc) name = do
-    P.update ai [AccountName P.=. name]
+    P.update ai [WM.AccountName P.=. name]
     return $
         acc
-        { accountName = name
+        { WM.accountName = name
         }
 
 -- | Add new thirdparty keys to a multisignature account. This function can
 -- fail if the multisignature account already has all required keys.
 addAccountKeys
     :: (MonadIO m, MonadThrow m, MonadBase IO m, MonadResource m)
-    => Entity Account -- ^ Account Entity
-    -> [XPubKey] -- ^ Thirdparty public keys to add
-    -> SqlPersistT m Account -- ^ Account information
+    => Entity WM.Account -- ^ Account Entity
+    -> [CY.XPubKey] -- ^ Thirdparty public keys to add
+    -> SqlPersistT m WM.Account -- ^ Account information
 addAccountKeys (Entity ai acc) keys
                                -- We can only add keys on incomplete accounts
     | isCompleteAccount acc =
-        throwM $ WalletException "The account is already complete"
+        throwM $ WT.WalletException "The account is already complete"
     | null keys || not (isValidAccKeys accKeys) =
-        throwM $ WalletException "Invalid account keys"
+        throwM $ WT.WalletException "Invalid account keys"
     | otherwise = do
         let canSetGap = isCompleteAccount accKeys
             updGap =
-                [ AccountGap P.=. 10
+                [ WM.AccountGap P.=. 10
                 | canSetGap ]
             newAcc =
                 accKeys
-                { accountGap =
+                { WM.accountGap =
                     if canSetGap
                         then 10
                         else 0
                 }
         -- Update the account with the keys and the new gap if it is complete
-        P.update ai $ (AccountKeys P.=. newKeys) : updGap
+        P.update ai $ (WM.AccountKeys P.=. newKeys) : updGap
         -- If we can set the gap, create the gap addresses
         when canSetGap $ initGap $ Entity ai newAcc
         return newAcc
   where
-    newKeys = accountKeys acc ++ keys
+    newKeys = WM.accountKeys acc ++ keys
     accKeys =
         acc
-        { accountKeys = newKeys
+        { WM.accountKeys = newKeys
         }
 
-isValidAccKeys :: Account -> Bool
-isValidAccKeys Account {..} =
+isValidAccKeys :: WM.Account -> Bool
+isValidAccKeys WM.Account {..} =
     testMaster &&
     case accountType of
-        AccountRegular      -> length accountKeys == 1
-        AccountMultisig _ n -> goMultisig n
+        WT.AccountRegular      -> length accountKeys == 1
+        WT.AccountMultisig _ n -> goMultisig n
   where
     goMultisig n =
         length accountKeys == length (nub accountKeys) &&
         length accountKeys <= n && not (null accountKeys)
     testMaster =
         case accountMaster of
-            Just m  -> deriveXPubKey m `elem` accountKeys
+            Just m  -> CY.deriveXPubKey m `elem` accountKeys
             Nothing -> True
 
 -- Helper functions to get an Account if it exists, or throw an exception
 -- otherwise.
 getAccount
     :: (MonadIO m, MonadThrow m)
-    => AccountName -> SqlPersistT m (Entity Account)
+    => WT.AccountName -> SqlPersistT m (Entity WM.Account)
 getAccount accountName = do
     as <-
         select $
         from $
         \a -> do
-            where_ $ a ^. AccountName ==. val accountName
+            where_ $ a ^. WM.AccountName ==. val accountName
             return a
     case as of
         (accEnt:_) -> return accEnt
         _ ->
             throwM $
-            WalletException $
+            WT.WalletException $
             unwords ["Account", unpack accountName, "does not exist"]
 
 {- Addresses -}
@@ -299,23 +305,23 @@ getAccount accountName = do
 -- addresses in the hidden gap will also throw an exception.
 getAddress
     :: (MonadIO m, MonadThrow m)
-    => Entity Account -- ^ Account Entity
-    -> AddressType -- ^ Address type
-    -> KeyIndex -- ^ Derivation index (key)
-    -> SqlPersistT m (Entity WalletAddr) -- ^ Address
+    => Entity WM.Account -- ^ Account Entity
+    -> WT.AddressType -- ^ Address type
+    -> CY.KeyIndex -- ^ Derivation index (key)
+    -> SqlPersistT m (Entity WM.WalletAddr) -- ^ Address
 getAddress accE@(Entity ai _) addrType index = do
     res <-
         select $
         from $
         \x -> do
             where_
-                (x ^. WalletAddrAccount ==. val ai &&. x ^. WalletAddrType ==.
+                (x ^. WM.WalletAddrAccount ==. val ai &&. x ^. WM.WalletAddrType ==.
                  val addrType &&.
                  x ^.
-                 WalletAddrIndex ==.
+                 WM.WalletAddrIndex ==.
                  val index &&.
                  x ^.
-                 WalletAddrIndex <.
+                 WM.WalletAddrIndex <.
                  subSelectAddrCount accE addrType)
             limit 1
             return x
@@ -323,60 +329,60 @@ getAddress accE@(Entity ai _) addrType index = do
         (addrE:_) -> return addrE
         _ ->
             throwM $
-            WalletException $ unwords ["Invalid address index", show index]
+            WT.WalletException $ unwords ["Invalid address index", show index]
 
 -- | All addresses in the wallet, including hidden gap addresses. This is useful
 -- for building a bloom filter.
 addressesAll
     :: (MonadIO m, MonadThrow m, MonadBase IO m, MonadResource m)
-    => SqlPersistT m [WalletAddr]
+    => SqlPersistT m [WM.WalletAddr]
 addressesAll = fmap (map entityVal) $ select $ from return
 
 -- | All addresses in one account excluding hidden gap.
 addresses
     :: (MonadIO m, MonadThrow m, MonadBase IO m, MonadResource m)
-    => Entity Account -- ^ Account Entity
-    -> AddressType -- ^ Address Type
-    -> SqlPersistT m [WalletAddr] -- ^ Addresses
+    => Entity WM.Account -- ^ Account Entity
+    -> WT.AddressType -- ^ Address Type
+    -> SqlPersistT m [WM.WalletAddr] -- ^ Addresses
 addresses accE@(Entity ai _) addrType =
     fmap (map entityVal) $
     select $
     from $
     \x -> do
         where_
-            (x ^. WalletAddrAccount ==. val ai &&. x ^. WalletAddrType ==. val addrType &&.
+            (x ^. WM.WalletAddrAccount ==. val ai &&. x ^. WM.WalletAddrType ==. val addrType &&.
              x ^.
-             WalletAddrIndex <.
+             WM.WalletAddrIndex <.
              subSelectAddrCount accE addrType)
         return x
 
 -- | Get address list.
 addressList
     :: MonadIO m
-    => Entity Account -- ^ Account Entity
-    -> AddressType -- ^ Address type
-    -> ListRequest -- ^ List request
-    -> SqlPersistT m ([WalletAddr], Word32) -- ^ List result
-addressList accE@(Entity ai _) addrType ListRequest {..} = do
+    => Entity WM.Account -- ^ Account Entity
+    -> WT.AddressType -- ^ Address type
+    -> WT.ListRequest -- ^ List request
+    -> SqlPersistT m ([WM.WalletAddr], Word32) -- ^ List result
+addressList accE@(Entity ai _) addrType WT.ListRequest {..} = do
     cnt <- addressCount accE addrType
     when (listOffset > 0 && listOffset >= cnt) $
-        throw $ WalletException "Offset beyond end of data set"
+        throw $ WT.WalletException "Offset beyond end of data set"
     res <-
         fmap (map entityVal) $
         select $
         from $
         \x -> do
             where_
-                (x ^. WalletAddrAccount ==. val ai &&. x ^. WalletAddrType ==.
+                (x ^. WM.WalletAddrAccount ==. val ai &&. x ^. WM.WalletAddrType ==.
                  val addrType &&.
                  x ^.
-                 WalletAddrIndex <.
+                 WM.WalletAddrIndex <.
                  val cnt)
             let order =
                     if listReverse
                         then asc
                         else desc
-            orderBy [order (x ^. WalletAddrIndex)]
+            orderBy [order (x ^. WM.WalletAddrIndex)]
             when (listLimit > 0) $ limit $ fromIntegral listLimit
             when (listOffset > 0) $ offset $ fromIntegral listOffset
             return x
@@ -385,8 +391,8 @@ addressList accE@(Entity ai _) addrType ListRequest {..} = do
 -- | Get a count of all the addresses in an account
 addressCount
     :: MonadIO m
-    => Entity Account -- ^ Account Entity
-    -> AddressType -- ^ Address type
+    => Entity WM.Account -- ^ Account Entity
+    -> WT.AddressType -- ^ Address type
     -> SqlPersistT m Word32 -- ^ Address Count
 addressCount (Entity ai acc) addrType = do
     res <-
@@ -394,49 +400,49 @@ addressCount (Entity ai acc) addrType = do
         from $
         \x -> do
             where_
-                (x ^. WalletAddrAccount ==. val ai &&. x ^. WalletAddrType ==.
+                (x ^. WM.WalletAddrAccount ==. val ai &&. x ^. WM.WalletAddrType ==.
                  val addrType)
             return countRows
     let cnt = maybe 0 unValue $ listToMaybe res
     return $
-        if cnt > accountGap acc
-            then cnt - accountGap acc
+        if cnt > WM.accountGap acc
+            then cnt - WM.accountGap acc
             else 0
 
 -- | Get a list of all unused addresses.
 unusedAddresses
     :: MonadIO m
-    => Entity Account -- ^ Account ID
-    -> AddressType -- ^ Address type
-    -> ListRequest
-    -> SqlPersistT m ([WalletAddr], Word32) -- ^ Unused addresses
-unusedAddresses (Entity ai acc) addrType ListRequest {..} = do
+    => Entity WM.Account -- ^ Account ID
+    -> WT.AddressType -- ^ Address type
+    -> WT.ListRequest
+    -> SqlPersistT m ([WM.WalletAddr], Word32) -- ^ Unused addresses
+unusedAddresses (Entity ai acc) addrType WT.ListRequest {..} = do
     cntRes <-
         select $
         from $
         \x -> do
             where_
-                (x ^. WalletAddrAccount ==. val ai &&. x ^. WalletAddrType ==.
+                (x ^. WM.WalletAddrAccount ==. val ai &&. x ^. WM.WalletAddrType ==.
                  val addrType)
             return countRows
     let cnt = maybe 0 unValue $ listToMaybe cntRes
     when (listOffset > 0 && listOffset >= gap) $
-        throw $ WalletException "Offset beyond end of data set"
+        throw $ WT.WalletException "Offset beyond end of data set"
     res <-
         fmap (map entityVal) $
         select $
         from $
         \x -> do
             where_
-                (x ^. WalletAddrAccount ==. val ai &&. x ^. WalletAddrType ==.
+                (x ^. WM.WalletAddrAccount ==. val ai &&. x ^. WM.WalletAddrType ==.
                  val addrType)
-            orderBy [order $ x ^. WalletAddrIndex]
+            orderBy [order $ x ^. WM.WalletAddrIndex]
             limit $ fromIntegral $ lim cnt
             offset $ fromIntegral $ off cnt
             return x
     return (res, gap)
   where
-    gap = accountGap acc
+    gap = WM.accountGap acc
     lim' =
         if listLimit > 0
             then listLimit
@@ -455,53 +461,53 @@ unusedAddresses (Entity ai acc) addrType ListRequest {..} = do
 -- | Add a label to an address.
 setAddrLabel
     :: (MonadIO m, MonadThrow m)
-    => Entity Account -- ^ Account ID
-    -> KeyIndex -- ^ Derivation index
-    -> AddressType -- ^ Address type
+    => Entity WM.Account -- ^ Account ID
+    -> CY.KeyIndex -- ^ Derivation index
+    -> WT.AddressType -- ^ Address type
     -> Text -- ^ New label
-    -> SqlPersistT m WalletAddr
+    -> SqlPersistT m WM.WalletAddr
 setAddrLabel accE i addrType label = do
     Entity addrI addr <- getAddress accE addrType i
-    P.update addrI [WalletAddrLabel P.=. label]
+    P.update addrI [WM.WalletAddrLabel P.=. label]
     return $
         addr
-        { walletAddrLabel = label
+        { WM.walletAddrLabel = label
         }
 
 -- | Returns the private key of an address.
 addressPrvKey
     :: (MonadIO m, MonadThrow m)
-    => Entity Account -- ^ Account Entity
-    -> Maybe XPrvKey -- ^ If not in account
-    -> KeyIndex -- ^ Derivation index of the address
-    -> AddressType -- ^ Address type
-    -> SqlPersistT m PrvKeyC -- ^ Private key
+    => Entity WM.Account -- ^ Account Entity
+    -> Maybe CY.XPrvKey -- ^ If not in account
+    -> CY.KeyIndex -- ^ Derivation index of the address
+    -> WT.AddressType -- ^ Address type
+    -> SqlPersistT m CY.PrvKeyC -- ^ Private key
 addressPrvKey accE@(Entity ai acc) masterM index addrType = do
     ret <-
         select $
         from $
         \x -> do
             where_
-                (x ^. WalletAddrAccount ==. val ai &&. x ^. WalletAddrType ==.
+                (x ^. WM.WalletAddrAccount ==. val ai &&. x ^. WM.WalletAddrType ==.
                  val addrType &&.
                  x ^.
-                 WalletAddrIndex ==.
+                 WM.WalletAddrIndex ==.
                  val index &&.
                  x ^.
-                 WalletAddrIndex <.
+                 WM.WalletAddrIndex <.
                  subSelectAddrCount accE addrType)
-            return $ x ^. WalletAddrIndex
+            return $ x ^. WM.WalletAddrIndex
     case ret of
         (Value idx:_) -> do
             accKey <-
-                case accountMaster acc <|> masterM of
+                case WM.accountMaster acc <|> masterM of
                     Just key -> return key
                     Nothing ->
-                        throwM $ WalletException "Could not get private key"
+                        throwM $ WT.WalletException "Could not get private key"
             let addrKey =
-                    prvSubKey (prvSubKey accKey (addrTypeIndex addrType)) idx
-            return $ xPrvKey addrKey
-        _ -> throwM $ WalletException "Invalid address"
+                    CY.prvSubKey (CY.prvSubKey accKey (WT.addrTypeIndex addrType)) idx
+            return $ CY.xPrvKey addrKey
+        _ -> throwM $ WT.WalletException "Invalid address"
 
 -- | Create new addresses in an account and increment the internal bloom filter.
 -- This is a low-level function that simply creates the desired amount of new
@@ -510,15 +516,15 @@ addressPrvKey accE@(Entity ai acc) masterM index addrType = do
 -- account instead.
 createAddrs
     :: (MonadIO m, MonadThrow m, MonadBase IO m, MonadResource m)
-    => Entity Account -> AddressType -> Word32 -> SqlPersistT m [WalletAddr]
+    => Entity WM.Account -> WT.AddressType -> Word32 -> SqlPersistT m [WM.WalletAddr]
 createAddrs (Entity ai acc) addrType n
-    | n == 0 = throwM $ WalletException $ unwords ["Invalid value", show n]
+    | n == 0 = throwM $ WT.WalletException $ unwords ["Invalid value", show n]
     | not (isCompleteAccount acc) =
         throwM $
-        WalletException $
+        WT.WalletException $
         unwords
             [ "Keys are still missing from the incomplete account"
-            , unpack $ accountName acc
+            , unpack $ WM.accountName acc
             ]
     | otherwise = do
         now <- liftIO getCurrentTime
@@ -528,15 +534,15 @@ createAddrs (Entity ai acc) addrType n
             from $
             \x -> do
                 where_
-                    (x ^. WalletAddrAccount ==. val ai &&. x ^. WalletAddrType ==.
+                    (x ^. WM.WalletAddrAccount ==. val ai &&. x ^. WM.WalletAddrType ==.
                      val addrType)
-                return $ max_ (x ^. WalletAddrIndex)
+                return $ max_ (x ^. WM.WalletAddrIndex)
         let nextI =
                 case lastRes of
                     (Value (Just lastI):_) -> lastI + 1
                     _                      -> 0
             build (addr, keyM, rdmM, i) =
-                WalletAddr
+                WM.WalletAddr
                 { walletAddrAccount = ai
                 , walletAddrAddress = addr
                 , walletAddrIndex = i
@@ -548,35 +554,35 @@ createAddrs (Entity ai acc) addrType n
                 }
             res = map build $ take (fromIntegral n) $ deriveFrom nextI
         -- Save the addresses and increment the bloom filter
-        splitInsertMany_ res
+        WT.splitInsertMany_ res
         incrementFilter res
         return res
   where
-    branchType = addrTypeIndex addrType
+    branchType = WT.addrTypeIndex addrType
     deriveFrom =
-        case accountType acc of
-            AccountMultisig m _ ->
+        case WM.accountType acc of
+            WT.AccountMultisig m _ ->
                 let f (a, r, i) = (a, Nothing, Just r, i)
-                    deriv = Deriv :/ branchType
-                in map f . derivePathMSAddrs (accountKeys acc) deriv m
-            AccountRegular ->
-                case accountKeys acc of
+                    deriv = CY.Deriv CY.:/ branchType
+                in map f . CY.derivePathMSAddrs (WM.accountKeys acc) deriv m
+            WT.AccountRegular ->
+                case WM.accountKeys acc of
                     (key:_) ->
                         let f (a, k, i) = (a, Just k, Nothing, i)
-                        in map f . derivePathAddrs key (Deriv :/ branchType)
+                        in map f . CY.derivePathAddrs key (CY.Deriv CY.:/ branchType)
                     [] ->
                         throw $
-                        WalletException $
+                        WT.WalletException $
                         unwords
                             [ "createAddrs: No key in regular account (corrupt database)"
-                            , unpack $ accountName acc
+                            , unpack $ WM.accountName acc
                             ]
 
 -- Branch type (external = 0, internal = 1)
 -- | Generate all the addresses up to certain index.
 generateAddrs
     :: (MonadIO m, MonadThrow m, MonadBase IO m, MonadResource m)
-    => Entity Account -> AddressType -> KeyIndex -> SqlPersistT m Int
+    => Entity WM.Account -> WT.AddressType -> CY.KeyIndex -> SqlPersistT m Int
 generateAddrs accE addrType genIndex = do
     cnt <- addressCount accE addrType
     let toGen = fromIntegral genIndex - fromIntegral cnt + 1
@@ -590,17 +596,17 @@ generateAddrs accE addrType genIndex = do
 -- Returns the new addresses that have been created.
 useAddress
     :: (MonadIO m, MonadThrow m, MonadBase IO m, MonadResource m)
-    => WalletAddr -> SqlPersistT m [WalletAddr]
-useAddress WalletAddr {..} = do
+    => WM.WalletAddr -> SqlPersistT m [WM.WalletAddr]
+useAddress WM.WalletAddr {..} = do
     res <-
         select $
         from $
         \x -> do
             where_
-                (x ^. WalletAddrAccount ==. val walletAddrAccount &&. x ^. WalletAddrType ==.
+                (x ^. WM.WalletAddrAccount ==. val walletAddrAccount &&. x ^. WM.WalletAddrType ==.
                  val walletAddrType &&.
                  x ^.
-                 WalletAddrIndex >.
+                 WM.WalletAddrIndex >.
                  val walletAddrIndex)
             return countRows
     case res of
@@ -610,7 +616,7 @@ useAddress WalletAddr {..} = do
                  case accM of
                      Just acc -> do
                          let accE = Entity walletAddrAccount acc
-                             gap = fromIntegral (accountGap acc) :: Int
+                             gap = fromIntegral (WM.accountGap acc) :: Int
                              missing = 2 * gap - cnt
                          if missing > 0
                              then createAddrs accE walletAddrType $
@@ -624,31 +630,31 @@ useAddress WalletAddr {..} = do
 -- not decreased in size.
 setAccountGap
     :: (MonadIO m, MonadThrow m, MonadBase IO m, MonadResource m)
-    => Entity Account -- ^ Account Entity
+    => Entity WM.Account -- ^ Account Entity
     -> Word32 -- ^ New gap value
-    -> SqlPersistT m (Entity Account)
+    -> SqlPersistT m (Entity WM.Account)
 setAccountGap accE@(Entity ai acc) gap
     | not (isCompleteAccount acc) =
         throwM $
-        WalletException $
+        WT.WalletException $
         unwords
             [ "Keys are still missing from the incomplete account"
-            , unpack $ accountName acc
+            , unpack $ WM.accountName acc
             ]
     | missing <= 0 =
-        throwM $ WalletException "The gap of an account can only be increased"
+        throwM $ WT.WalletException "The gap of an account can only be increased"
     | otherwise = do
-        _ <- createAddrs accE AddressExternal $ fromInteger $ missing * 2
-        _ <- createAddrs accE AddressInternal $ fromInteger $ missing * 2
-        P.update ai [AccountGap P.=. gap]
+        _ <- createAddrs accE WT.AddressExternal $ fromInteger $ missing * 2
+        _ <- createAddrs accE WT.AddressInternal $ fromInteger $ missing * 2
+        P.update ai [WM.AccountGap P.=. gap]
         return $
             Entity
                 ai
                 acc
-                { accountGap = gap
+                { WM.accountGap = gap
                 }
   where
-    missing = toInteger gap - toInteger (accountGap acc)
+    missing = toInteger gap - toInteger (WM.accountGap acc)
 
 -- Return the creation time of the first address in the wallet.
 firstAddrTime
@@ -659,9 +665,9 @@ firstAddrTime = do
         select $
         from $
         \x -> do
-            orderBy [asc (x ^. WalletAddrId)]
+            orderBy [asc (x ^. WM.WalletAddrId)]
             limit 1
-            return $ x ^. WalletAddrCreated
+            return $ x ^. WM.WalletAddrCreated
     return $
         case res of
             (Value d:_) -> Just $ toPOSIX d
@@ -674,7 +680,7 @@ firstAddrTime = do
 -- becomes too large, a new bloom filter is computed from scratch.
 incrementFilter
     :: (MonadIO m, MonadThrow m, MonadBase IO m, MonadResource m)
-    => [WalletAddr] -> SqlPersistT m ()
+    => [WM.WalletAddr] -> SqlPersistT m ()
 incrementFilter addrs = do
     (bloom, elems, _) <- getBloomFilter
     let newElems = elems + (length addrs * 2)
@@ -691,7 +697,7 @@ computeNewFilter = do
     -- Create a new empty bloom filter
     -- TODO: Choose a random nonce for the bloom filter
     -- TODO: Check global bloom filter length limits
-    cntRes <- select $ from $ \x -> return $ count $ x ^. WalletAddrId
+    cntRes <- select $ from $ \x -> return $ count $ x ^. WM.WalletAddrId
     let elems = maybe 0 unValue $ listToMaybe cntRes
         newBloom = bloomCreate (filterLen elems) fpRate 0 BloomUpdateNone
     addrs <- addressesAll
@@ -707,14 +713,14 @@ filterLen = round . pow2 . ceiling . log2
     log2 x = logBase (2 :: Double) (fromIntegral x)
 
 -- | Add elements to a bloom filter
-addToFilter :: BloomFilter -> [WalletAddr] -> BloomFilter
+addToFilter :: BloomFilter -> [WM.WalletAddr] -> BloomFilter
 addToFilter bloom addrs = bloom3
   where
-    pks = mapMaybe walletAddrKey addrs
-    rdms = mapMaybe walletAddrRedeem addrs
+    pks = mapMaybe WM.walletAddrKey addrs
+    rdms = mapMaybe WM.walletAddrRedeem addrs
     -- Add the Hash160 of the addresses
-    f1 b a = bloomInsert b $ encode $ getAddrHash a
-    bloom1 = foldl f1 bloom $ map walletAddrAddress addrs
+    f1 b a = bloomInsert b $ encode $ CY.getAddrHash a
+    bloom1 = foldl f1 bloom $ map WM.walletAddrAddress addrs
     -- Add the redeem scripts
     f2 b r = bloomInsert b $ encodeOutputBS r
     bloom2 = foldl f2 bloom1 rdms
@@ -735,10 +741,10 @@ getBloomFilter = do
         \c -> do
             limit 1
             return
-                (c ^. WalletStateBloomFilter, c ^. WalletStateBloomElems, c ^. WalletStateBloomFp)
+                (c ^. WM.WalletStateBloomFilter, c ^. WM.WalletStateBloomElems, c ^. WM.WalletStateBloomFp)
     case res of
         ((Value b, Value n, Value fp):_) -> return (b, n, fp)
-        _ -> throwM $ WalletException "getBloomFilter: Database not initialized"
+        _ -> throwM $ WT.WalletException "getBloomFilter: Database not initialized"
 
 -- | Save a bloom filter and the number of elements it contains
 setBloomFilter
@@ -747,41 +753,41 @@ setBloomFilter
 setBloomFilter bloom elems =
     P.updateWhere
         []
-        [WalletStateBloomFilter P.=. bloom, WalletStateBloomElems P.=. elems]
+        [WM.WalletStateBloomFilter P.=. bloom, WM.WalletStateBloomElems P.=. elems]
 
 -- Helper function to compute the redeem script of a given derivation path
 -- for a given multisig account.
-getPathRedeem :: Account -> SoftPath -> RedeemScript
-getPathRedeem acc@Account {..} deriv =
+getPathRedeem :: WM.Account -> CY.SoftPath -> RedeemScript
+getPathRedeem acc@WM.Account {..} deriv =
     case accountType of
-        AccountMultisig m _ ->
+        WT.AccountMultisig m _ ->
             if isCompleteAccount acc
                 then sortMulSig $ PayMulSig pubKeys m
                 else throw $
-                     WalletException $
+                     WT.WalletException $
                      unwords
                          [ "getPathRedeem: Incomplete multisig account"
                          , unpack accountName
                          ]
         _ ->
             throw $
-            WalletException $
+            WT.WalletException $
             unwords
                 [ "getPathRedeem: Account"
                 , unpack accountName
                 , "is not a multisig account"
                 ]
   where
-    f = toPubKeyG . xPubKey . derivePubPath deriv
+    f = CY.toPubKeyG . CY.xPubKey . CY.derivePubPath deriv
     pubKeys = map f accountKeys
 
 -- Helper function to compute the public key of a given derivation path for
 -- a given non-multisig account.
-getPathPubKey :: Account -> SoftPath -> PubKeyC
-getPathPubKey acc@Account {..} deriv
+getPathPubKey :: WM.Account -> CY.SoftPath -> CY.PubKeyC
+getPathPubKey acc@WM.Account {..} deriv
     | isMultisigAccount acc =
         throw $
-        WalletException $
+        WT.WalletException $
         unwords
             [ "getPathPubKey: Account"
             , unpack accountName
@@ -789,24 +795,24 @@ getPathPubKey acc@Account {..} deriv
             ]
     | otherwise =
         case accountKeys of
-            (key:_) -> xPubKey $ derivePubPath deriv key
+            (key:_) -> CY.xPubKey $ CY.derivePubPath deriv key
             _ ->
                 throw $
-                WalletException $
+                WT.WalletException $
                 unwords
                     [ "getPathPubKey: No keys are available in account"
                     , unpack accountName
                     ]
 
 {- Helpers -}
-subSelectAddrCount :: Entity Account -> AddressType -> SqlExpr (Value KeyIndex)
+subSelectAddrCount :: Entity WM.Account -> WT.AddressType -> SqlExpr (Value CY.KeyIndex)
 subSelectAddrCount (Entity ai acc) addrType =
     sub_select $
     from $
     \x -> do
         where_
-            (x ^. WalletAddrAccount ==. val ai &&. x ^. WalletAddrType ==. val addrType)
-        let gap = val $ accountGap acc
+            (x ^. WM.WalletAddrAccount ==. val ai &&. x ^. WM.WalletAddrType ==. val addrType)
+        let gap = val $ WM.accountGap acc
         return $
             case_
                 [when_ (countRows >. gap) then_ (countRows -. gap)]
@@ -815,23 +821,23 @@ subSelectAddrCount (Entity ai acc) addrType =
 validMultisigParams :: Int -> Int -> Bool
 validMultisigParams m n = n >= 1 && n <= 15 && m >= 1 && m <= n
 
-validAccountType :: AccountType -> Bool
+validAccountType :: WT.AccountType -> Bool
 validAccountType t =
     case t of
-        AccountRegular      -> True
-        AccountMultisig m n -> validMultisigParams m n
+        WT.AccountRegular      -> True
+        WT.AccountMultisig m n -> validMultisigParams m n
 
-isMultisigAccount :: Account -> Bool
+isMultisigAccount :: WM.Account -> Bool
 isMultisigAccount acc =
-    case accountType acc of
-        AccountRegular     -> False
-        AccountMultisig {} -> True
+    case WM.accountType acc of
+        WT.AccountRegular     -> False
+        WT.AccountMultisig {} -> True
 
-isReadAccount :: Account -> Bool
-isReadAccount = isNothing . accountMaster
+isReadAccount :: WM.Account -> Bool
+isReadAccount = isNothing . WM.accountMaster
 
-isCompleteAccount :: Account -> Bool
+isCompleteAccount :: WM.Account -> Bool
 isCompleteAccount acc =
-    case accountType acc of
-        AccountRegular      -> length (accountKeys acc) == 1
-        AccountMultisig _ n -> length (accountKeys acc) == n
+    case WM.accountType acc of
+        WT.AccountRegular      -> length (WM.accountKeys acc) == 1
+        WT.AccountMultisig _ n -> length (WM.accountKeys acc) == n

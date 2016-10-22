@@ -4,43 +4,43 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Network.Haskoin.Wallet.Types
-  ( AccountName
-  , JsonAccount(..)
-  , JsonAddr(..)
-  , JsonCoin(..)
-  , JsonTx(..)
-  , WalletRequest(..)
-  , ListRequest(..)
-  , NewAccount(..)
-  , SetAccountGap(..)
-  , OfflineTxData(..)
-  , CoinSignData(..)
-  , TxAction(..)
-  , AddressLabel(..)
-  , NodeAction(..)
-  , AccountType(..)
-  , AddressType(..)
-  , addrTypeIndex
-  , TxType(..)
-  , TxConfidence(..)
-  , AddressInfo(..)
-  , BalanceInfo(..)
-  , WalletResponse(..)
-  , TxCompleteRes(..)
-  , ListResult(..)
-  , RescanRes(..)
-  , JsonSyncBlock(..)
-  , JsonBlock(..)
-  , Notif(..)
-  , WalletException(..)
-  , BTCNode(..)
-  , splitSelect
-  , splitUpdate
-  , splitDelete
-  , splitInsertMany_
-  , join2
-  , limitOffset
-  ) where
+       ( AccountName
+       , JsonAccount(..)
+       , JsonAddr(..)
+       , JsonCoin(..)
+       , JsonTx(..)
+       , WalletRequest(..)
+       , ListRequest(..)
+       , NewAccount(..)
+       , SetAccountGap(..)
+       , OfflineTxData(..)
+       , CoinSignData(..)
+       , TxAction(..)
+       , AddressLabel(..)
+       , NodeAction(..)
+       , AccountType(..)
+       , AddressType(..)
+       , addrTypeIndex
+       , TxType(..)
+       , TxConfidence(..)
+       , AddressInfo(..)
+       , BalanceInfo(..)
+       , WalletResponse(..)
+       , TxCompleteRes(..)
+       , ListResult(..)
+       , RescanRes(..)
+       , JsonSyncBlock(..)
+       , JsonBlock(..)
+       , Notif(..)
+       , WalletException(..)
+       , BTCNode(..)
+       , splitSelect
+       , splitUpdate
+       , splitDelete
+       , splitInsertMany_
+       , join2
+       , limitOffset
+       ) where
 
 -- JSON Types
 -- Request Types
@@ -52,13 +52,15 @@ import           Control.Exception               (Exception)
 import           Control.Monad                   (forM, forM_, mzero, when)
 import           Control.Monad.Trans             (MonadIO)
 import           Data.Aeson                      (FromJSON, ToJSON, Value (..),
-                                                  decodeStrict', object, parseJSON,
-                                                  toJSON, withObject, (.!=), (.:), (.:?),
-                                                  (.=))
+                                                  decodeStrict', object,
+                                                  parseJSON, toJSON, withObject,
+                                                  (.!=), (.:), (.:?), (.=))
 import qualified Data.Aeson                      as Aeson
 import           Data.Aeson.TH                   (deriveJSON)
-import           Data.Aeson.Types                (Options (..), SumEncoding (..),
-                                                  defaultOptions, defaultTaggedObject)
+import           Data.Aeson.Types                (Options (..),
+                                                  SumEncoding (..),
+                                                  defaultOptions,
+                                                  defaultTaggedObject)
 import           Data.Char                       (toLower)
 import           Data.Int                        (Int64)
 import           Data.List.Split                 (chunksOf)
@@ -70,26 +72,35 @@ import           Data.Text                       (Text)
 import           Data.Time                       (UTCTime)
 import           Data.Typeable                   (Typeable)
 import           Data.Word                       (Word32, Word64)
-import           Database.Esqueleto              (Entity (..), SqlBackend, SqlExpr,
-                                                  SqlPersistT, SqlQuery, limit, offset,
+import           Database.Esqueleto              (Entity (..), SqlBackend,
+                                                  SqlExpr, SqlPersistT,
+                                                  SqlQuery, limit, offset,
                                                   select, update, val, (||.))
 import qualified Database.Esqueleto              as E (Value, delete)
 import           Database.Esqueleto.Internal.Sql (SqlSelect)
 import qualified Database.Persist                as P (PersistEntity,
-                                                       PersistEntityBackend, insertMany_)
-import           Database.Persist.Class          (PersistField, fromPersistValue,
+                                                       PersistEntityBackend,
+                                                       insertMany_)
+import           Database.Persist.Class          (PersistField,
+                                                  fromPersistValue,
                                                   toPersistValue)
-import           Database.Persist.Sql            (PersistFieldSql, SqlType (..), sqlType)
+import           Database.Persist.Sql            (PersistFieldSql, SqlType (..),
+                                                  sqlType)
 import           Database.Persist.Types          (PersistValue (..))
 import           GHC.Generics                    (Generic)
-import           Network.Haskoin.Block
-import           Network.Haskoin.Crypto
-import           Network.Haskoin.Node
-import           Network.Haskoin.Node.HeaderTree
-import           Network.Haskoin.Script
-import           Network.Haskoin.Transaction
-import           Network.Haskoin.Util
-import           Network.Haskoin.Wallet.Database
+import           Network.Haskoin.Block           (BlockHash, blockHashToHex,
+                                                  hexToBlockHash)
+import qualified Network.Haskoin.Crypto          as CY
+import           Network.Haskoin.Node            (BloomFilter)
+import           Network.Haskoin.Node.HeaderTree (BlockHeight)
+import           Network.Haskoin.Script          (ScriptOutput, decodeOutputBS,
+                                                  encodeOutputBS)
+import           Network.Haskoin.Transaction     (OutPoint, Tx, TxHash,
+                                                  hexToTxHash, txHashToHex)
+import           Network.Haskoin.Util            (decodeHex, dropFieldLabel,
+                                                  dropSumLabels, encodeHex,
+                                                  maybeToEither)
+import           Network.Haskoin.Wallet.Database (paramLimit)
 
 type AccountName = Text
 
@@ -119,7 +130,7 @@ instance NFData TxConfidence where
 $(deriveJSON (dropSumLabels 2 0 "") ''TxConfidence)
 
 data AddressInfo = AddressInfo
-    { addressInfoAddress :: !Address
+    { addressInfoAddress :: !CY.Address
     , addressInfoValue   :: !(Maybe Word64)
     , addressInfoIsLocal :: !Bool
     } deriving (Eq, Show, Read, Generic)
@@ -186,9 +197,9 @@ data NewAccount = NewAccount
     { newAccountName     :: !AccountName
     , newAccountType     :: !AccountType
     , newAccountMnemonic :: !(Maybe Text)
-    , newAccountMaster   :: !(Maybe XPrvKey)
-    , newAccountDeriv    :: !(Maybe HardPath)
-    , newAccountKeys     :: ![XPubKey]
+    , newAccountMaster   :: !(Maybe CY.XPrvKey)
+    , newAccountDeriv    :: !(Maybe CY.HardPath)
+    , newAccountKeys     :: ![CY.XPubKey]
     , newAccountReadOnly :: !Bool
     } deriving (Eq, Show, Read)
 
@@ -211,7 +222,7 @@ $(deriveJSON (dropFieldLabel 4) ''ListRequest)
 data CoinSignData = CoinSignData
     { coinSignOutPoint     :: !OutPoint
     , coinSignScriptOutput :: !ScriptOutput
-    , coinSignDeriv        :: !SoftPath
+    , coinSignDeriv        :: !CY.SoftPath
     } deriving (Eq, Show)
 
 $(deriveJSON (dropFieldLabel 8) ''CoinSignData)
@@ -224,7 +235,7 @@ data OfflineTxData = OfflineTxData
 $(deriveJSON (dropFieldLabel 13) ''OfflineTxData)
 
 data TxAction
-    = CreateTx { accTxActionRecipients :: ![(Address, Word64)]
+    = CreateTx { accTxActionRecipients :: ![(CY.Address, Word64)]
                , accTxActionFee        :: !Word64
                , accTxActionMinConf    :: !Word32
                , accTxActionRcptFee    :: !Bool
@@ -308,7 +319,7 @@ $(deriveJSON (dropSumLabels 7 0 "") ''AddressType)
 instance NFData AddressType where
     rnf x = x `seq` ()
 
-addrTypeIndex :: AddressType -> KeyIndex
+addrTypeIndex :: AddressType -> CY.KeyIndex
 addrTypeIndex AddressExternal = 0
 addrTypeIndex AddressInternal = 1
 
@@ -319,7 +330,7 @@ data WalletRequest
                          !AccountName
     | GetAccountR !AccountName
     | PostAccountKeysR !AccountName
-                       ![XPubKey]
+                       ![CY.XPubKey]
     | PostAccountGapR !AccountName
                       !SetAccountGap
     | GetAddressesR !AccountName
@@ -331,32 +342,32 @@ data WalletRequest
                           !AddressType
                           !ListRequest
     | GetAddressR !AccountName
-                  !KeyIndex
+                  !CY.KeyIndex
                   !AddressType
                   !Word32
                   !Bool
     | PutAddressR !AccountName
-                  !KeyIndex
+                  !CY.KeyIndex
                   !AddressType
                   !AddressLabel
     | PostAddressesR !AccountName
-                     !KeyIndex
+                     !CY.KeyIndex
                      !AddressType
     | GetTxsR !AccountName
               !ListRequest
     | GetAddrTxsR !AccountName
-                  !KeyIndex
+                  !CY.KeyIndex
                   !AddressType
                   !ListRequest
     | PostTxsR !AccountName
-               !(Maybe XPrvKey)
+               !(Maybe CY.XPrvKey)
                !TxAction
     | GetTxR !AccountName
              !TxHash
     | GetOfflineTxR !AccountName
                     !TxHash
     | PostOfflineTxR !AccountName
-                     !(Maybe XPrvKey)
+                     !(Maybe CY.XPrvKey)
                      !Tx
                      ![CoinSignData]
     | GetBalanceR !AccountName
@@ -391,10 +402,10 @@ $(deriveJSON
 data JsonAccount = JsonAccount
     { jsonAccountName       :: !Text
     , jsonAccountType       :: !AccountType
-    , jsonAccountMaster     :: !(Maybe XPrvKey)
+    , jsonAccountMaster     :: !(Maybe CY.XPrvKey)
     , jsonAccountMnemonic   :: !(Maybe Text)
-    , jsonAccountDerivation :: !(Maybe HardPath)
-    , jsonAccountKeys       :: ![XPubKey]
+    , jsonAccountDerivation :: !(Maybe CY.HardPath)
+    , jsonAccountKeys       :: ![CY.XPubKey]
     , jsonAccountGap        :: !Word32
     , jsonAccountCreated    :: !UTCTime
     } deriving (Eq, Show, Read)
@@ -402,12 +413,12 @@ data JsonAccount = JsonAccount
 $(deriveJSON (dropFieldLabel 11) ''JsonAccount)
 
 data JsonAddr = JsonAddr
-    { jsonAddrAddress :: !Address
-    , jsonAddrIndex   :: !KeyIndex
+    { jsonAddrAddress :: !CY.Address
+    , jsonAddrIndex   :: !CY.KeyIndex
     , jsonAddrType    :: !AddressType
     , jsonAddrLabel   :: !Text
     , jsonAddrRedeem  :: !(Maybe ScriptOutput)
-    , jsonAddrKey     :: !(Maybe PubKeyC)
+    , jsonAddrKey     :: !(Maybe CY.PubKeyC)
     , jsonAddrCreated :: !UTCTime
       -- Optional Balance
     , jsonAddrBalance :: !(Maybe BalanceInfo)
@@ -524,18 +535,18 @@ data BTCNode = BTCNode
 $(deriveJSON (dropFieldLabel 7) ''BTCNode)
 
 {- Persistent Instances -}
-instance PersistField XPrvKey where
-    toPersistValue = PersistText . cs . xPrvExport
+instance PersistField CY.XPrvKey where
+    toPersistValue = PersistText . cs . CY.xPrvExport
     fromPersistValue (PersistText txt) =
-        maybeToEither "Invalid Persistent XPrvKey" $ xPrvImport $ cs txt
+        maybeToEither "Invalid Persistent XPrvKey" $ CY.xPrvImport $ cs txt
     fromPersistValue (PersistByteString bs) =
-        maybeToEither "Invalid Persistent XPrvKey" $ xPrvImport bs
+        maybeToEither "Invalid Persistent XPrvKey" $ CY.xPrvImport bs
     fromPersistValue _ = Left "Invalid Persistent XPrvKey"
 
-instance PersistFieldSql XPrvKey where
+instance PersistFieldSql CY.XPrvKey where
     sqlType _ = SqlString
 
-instance PersistField [XPubKey] where
+instance PersistField [CY.XPubKey] where
     toPersistValue = PersistText . cs . Aeson.encode
     fromPersistValue (PersistText txt) =
         maybeToEither "Invalid Persistent XPubKey" $ decodeStrict' $ cs txt
@@ -543,44 +554,44 @@ instance PersistField [XPubKey] where
         maybeToEither "Invalid Persistent XPubKey" $ decodeStrict' bs
     fromPersistValue _ = Left "Invalid Persistent XPubKey"
 
-instance PersistFieldSql [XPubKey] where
+instance PersistFieldSql [CY.XPubKey] where
     sqlType _ = SqlString
 
-instance PersistField DerivPath where
-    toPersistValue = PersistText . cs . pathToStr
+instance PersistField CY.DerivPath where
+    toPersistValue = PersistText . cs . CY.pathToStr
     fromPersistValue (PersistText txt) =
         maybeToEither "Invalid Persistent DerivPath" .
-        fmap getParsedPath . parsePath . cs $
+        fmap CY.getParsedPath . CY.parsePath . cs $
         txt
     fromPersistValue (PersistByteString bs) =
         maybeToEither "Invalid Persistent DerivPath" .
-        fmap getParsedPath . parsePath . cs $
+        fmap CY.getParsedPath . CY.parsePath . cs $
         bs
     fromPersistValue _ = Left "Invalid Persistent DerivPath"
 
-instance PersistFieldSql DerivPath where
+instance PersistFieldSql CY.DerivPath where
     sqlType _ = SqlString
 
-instance PersistField HardPath where
-    toPersistValue = PersistText . cs . pathToStr
+instance PersistField CY.HardPath where
+    toPersistValue = PersistText . cs . CY.pathToStr
     fromPersistValue (PersistText txt) =
-        maybeToEither "Invalid Persistent HardPath" $ parseHard $ cs txt
+        maybeToEither "Invalid Persistent HardPath" $ CY.parseHard $ cs txt
     fromPersistValue (PersistByteString bs) =
-        maybeToEither "Invalid Persistent HardPath" $ parseHard $ cs bs
+        maybeToEither "Invalid Persistent HardPath" $ CY.parseHard $ cs bs
     fromPersistValue _ = Left "Invalid Persistent HardPath"
 
-instance PersistFieldSql HardPath where
+instance PersistFieldSql CY.HardPath where
     sqlType _ = SqlString
 
-instance PersistField SoftPath where
-    toPersistValue = PersistText . cs . pathToStr
+instance PersistField CY.SoftPath where
+    toPersistValue = PersistText . cs . CY.pathToStr
     fromPersistValue (PersistText txt) =
-        maybeToEither "Invalid Persistent SoftPath" $ parseSoft $ cs txt
+        maybeToEither "Invalid Persistent SoftPath" $ CY.parseSoft $ cs txt
     fromPersistValue (PersistByteString bs) =
-        maybeToEither "Invalid Persistent SoftPath" $ parseSoft $ cs bs
+        maybeToEither "Invalid Persistent SoftPath" $ CY.parseSoft $ cs bs
     fromPersistValue _ = Left "Invalid Persistent SoftPath"
 
-instance PersistFieldSql SoftPath where
+instance PersistFieldSql CY.SoftPath where
     sqlType _ = SqlString
 
 instance PersistField AccountType where
@@ -639,15 +650,15 @@ instance PersistField TxType where
 instance PersistFieldSql TxType where
     sqlType _ = SqlString
 
-instance PersistField Address where
-    toPersistValue = PersistText . cs . addrToBase58
+instance PersistField CY.Address where
+    toPersistValue = PersistText . cs . CY.addrToBase58
     fromPersistValue (PersistText a) =
-        maybeToEither "Invalid Persistent Address" $ base58ToAddr $ cs a
+        maybeToEither "Invalid Persistent Address" $ CY.base58ToAddr $ cs a
     fromPersistValue (PersistByteString a) =
-        maybeToEither "Invalid Persistent Address" $ base58ToAddr a
+        maybeToEither "Invalid Persistent Address" $ CY.base58ToAddr a
     fromPersistValue _ = Left "Invalid Persistent Address"
 
-instance PersistFieldSql Address where
+instance PersistFieldSql CY.Address where
     sqlType _ = SqlString
 
 instance PersistField BloomFilter where
@@ -721,7 +732,7 @@ instance PersistField Tx where
 instance PersistFieldSql Tx where
     sqlType _ = SqlOther "MEDIUMBLOB"
 
-instance PersistField PubKeyC where
+instance PersistField CY.PubKeyC where
     toPersistValue = PersistText . cs . encodeHex . encode
     fromPersistValue (PersistText txt) =
         case hex >>= decode of
@@ -737,7 +748,7 @@ instance PersistField PubKeyC where
         hex = maybeToEither "Could not decode hex" (decodeHex bs)
     fromPersistValue _ = Left "Invalid Persistent PubKeyC"
 
-instance PersistFieldSql PubKeyC where
+instance PersistFieldSql CY.PubKeyC where
     sqlType _ = SqlString
 
 instance PersistField ScriptOutput where

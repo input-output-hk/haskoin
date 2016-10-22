@@ -1,13 +1,13 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Network.Haskoin.Wallet.Client
-  ( clientMain
-  ) where
+       ( clientMain
+       ) where
 
 import           System.Console.GetOpt                  (ArgDescr (NoArg, ReqArg),
                                                          ArgOrder (Permute),
-                                                         OptDescr (Option), getOpt,
-                                                         usageInfo)
+                                                         OptDescr (Option),
+                                                         getOpt, usageInfo)
 import           System.Directory                       (createDirectoryIfMissing)
 import           System.Environment                     (getArgs, lookupEnv)
 import           System.FilePath                        ((</>))
@@ -15,7 +15,8 @@ import           System.Info                            (os)
 import           System.Posix.Directory                 (changeWorkingDirectory)
 import           System.Posix.Files                     (fileExist, groupModes,
                                                          otherModes, ownerModes,
-                                                         setFileCreationMask, setFileMode,
+                                                         setFileCreationMask,
+                                                         setFileMode,
                                                          unionFileModes)
 
 import           Control.Monad                          (forM_, when)
@@ -27,11 +28,13 @@ import           Data.FileEmbed                         (embedFile)
 import           Data.String.Conversions                (cs)
 import           Data.Yaml                              (decodeFileEither)
 
-import           Network.Haskoin.Constants
-import           Network.Haskoin.Crypto
-import           Network.Haskoin.Wallet.Client.Commands
-import           Network.Haskoin.Wallet.Settings
-import           Network.Haskoin.Wallet.Types
+import           Network.Haskoin.Constants              (networkName,
+                                                         switchToTestnet3)
+import           Network.Haskoin.Crypto                 (parseHard)
+import qualified Network.Haskoin.Wallet.Client.Commands as CMD
+import           Network.Haskoin.Wallet.Settings        (Config (..),
+                                                         OutputFormat (..))
+import           Network.Haskoin.Wallet.Types           (AddressType (..))
 
 import           System.Exit                            (exitFailure)
 import           System.FilePath.Posix                  (isAbsolute)
@@ -292,41 +295,41 @@ dispatchCommand :: Config -> [String] -> IO ()
 dispatchCommand cfg args =
     flip R.runReaderT cfg $
     case args of
-        "start":[] -> cmdStart
-        "stop":[] -> cmdStop
-        "newacc":name:[] -> cmdNewAcc False name []
-        "newread":name:[] -> cmdNewAcc True name []
-        "newms":name:m:n:[] -> cmdNewAcc False name [m, n]
-        "newreadms":name:m:n:[] -> cmdNewAcc True name [m, n]
-        "addkey":name:[] -> cmdAddKey name
-        "setgap":name:gap:[] -> cmdSetGap name gap
-        "account":name:[] -> cmdAccount name
-        "accounts":page -> cmdAccounts page
-        "rename":name:new:[] -> cmdRenameAcc name new
-        "list":name:page -> cmdList name page
-        "unused":name:page -> cmdUnused name page
-        "label":name:index:label:[] -> cmdLabel name index label
-        "txs":name:page -> cmdTxs name page
-        "addrtxs":name:index:page -> cmdAddrTxs name index page
-        "genaddrs":name:i:[] -> cmdGenAddrs name i
-        "send":name:add:amnt:[] -> cmdSend name add amnt
-        "sendmany":name:xs -> cmdSendMany name xs
-        "import":name:[] -> cmdImport name
-        "sign":name:txid:[] -> cmdSign name txid
-        "gettx":name:txid:[] -> cmdGetTx name txid
-        "balance":name:[] -> cmdBalance name
-        "getoffline":name:txid:[] -> cmdGetOffline name txid
-        "signoffline":name:tx:dat:[] -> cmdSignOffline name tx dat
-        "rescan":rescantime -> cmdRescan rescantime
-        "deletetx":txid:[] -> cmdDeleteTx txid
-        "sync":name:block:page -> cmdSync name block page
-        "pending":name:page -> cmdPending name page
-        "dead":name:page -> cmdDead name page
-        "monitor":name -> cmdMonitor name
-        "decodetx":[] -> cmdDecodeTx
-        "status":[] -> cmdStatus
-        "keypair":[] -> cmdKeyPair
-        "version":[] -> cmdVersion
+        "start":[] -> CMD.cmdStart
+        "stop":[] -> CMD.cmdStop
+        "newacc":name:[] -> CMD.cmdNewAcc False name []
+        "newread":name:[] -> CMD.cmdNewAcc True name []
+        "newms":name:m:n:[] -> CMD.cmdNewAcc False name [m, n]
+        "newreadms":name:m:n:[] -> CMD.cmdNewAcc True name [m, n]
+        "addkey":name:[] -> CMD.cmdAddKey name
+        "setgap":name:gap:[] -> CMD.cmdSetGap name gap
+        "account":name:[] -> CMD.cmdAccount name
+        "accounts":page -> CMD.cmdAccounts page
+        "rename":name:new:[] -> CMD.cmdRenameAcc name new
+        "list":name:page -> CMD.cmdList name page
+        "unused":name:page -> CMD.cmdUnused name page
+        "label":name:index:label:[] -> CMD.cmdLabel name index label
+        "txs":name:page -> CMD.cmdTxs name page
+        "addrtxs":name:index:page -> CMD.cmdAddrTxs name index page
+        "genaddrs":name:i:[] -> CMD.cmdGenAddrs name i
+        "send":name:add:amnt:[] -> CMD.cmdSend name add amnt
+        "sendmany":name:xs -> CMD.cmdSendMany name xs
+        "import":name:[] -> CMD.cmdImport name
+        "sign":name:txid:[] -> CMD.cmdSign name txid
+        "gettx":name:txid:[] -> CMD.cmdGetTx name txid
+        "balance":name:[] -> CMD.cmdBalance name
+        "getoffline":name:txid:[] -> CMD.cmdGetOffline name txid
+        "signoffline":name:tx:dat:[] -> CMD.cmdSignOffline name tx dat
+        "rescan":rescantime -> CMD.cmdRescan rescantime
+        "deletetx":txid:[] -> CMD.cmdDeleteTx txid
+        "sync":name:block:page -> CMD.cmdSync name block page
+        "pending":name:page -> CMD.cmdPending name page
+        "dead":name:page -> CMD.cmdDead name page
+        "monitor":name -> CMD.cmdMonitor name
+        "decodetx":[] -> CMD.cmdDecodeTx
+        "status":[] -> CMD.cmdStatus
+        "keypair":[] -> CMD.cmdKeyPair
+        "version":[] -> CMD.cmdVersion
         "help":[] -> liftIO $ forM_ usage (hPutStrLn stderr)
         [] -> liftIO $ forM_ usage (hPutStrLn stderr)
         _ -> liftIO $ forM_ ("Invalid command" : usage) (hPutStrLn stderr) >> exitFailure

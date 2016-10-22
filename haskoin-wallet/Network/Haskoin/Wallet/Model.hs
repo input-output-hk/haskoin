@@ -1,26 +1,26 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Network.Haskoin.Wallet.Model
-  ( Account(..)
-  , AccountId
-  , WalletAddr(..)
-  , WalletAddrId
-  , WalletState(..)
-  , WalletStateId
-  , WalletCoin(..)
-  , WalletCoinId
-  , SpentCoin(..)
-  , SpentCoinId
-  , WalletTx(..)
-  , WalletTxId
-  , EntityField(..)
-  , Unique(..)
-  , migrateWallet
-  , toJsonAccount
-  , toJsonAddr
-  , toJsonCoin
-  , toJsonTx
-  ) where
+       ( Account(..)
+       , AccountId
+       , WalletAddr(..)
+       , WalletAddrId
+       , WalletState(..)
+       , WalletStateId
+       , WalletCoin(..)
+       , WalletCoinId
+       , SpentCoin(..)
+       , SpentCoinId
+       , WalletTx(..)
+       , WalletTxId
+       , EntityField(..)
+       , Unique(..)
+       , migrateWallet
+       , toJsonAccount
+       , toJsonAddr
+       , toJsonCoin
+       , toJsonTx
+       ) where
 
 -- Database types
 -- JSON conversion
@@ -31,16 +31,24 @@ import           Data.Word                       (Word32, Word64)
 
 import           Database.Persist                (EntityField, Unique)
 import           Database.Persist.Quasi          (lowerCaseSettings)
-import           Database.Persist.TH             (mkMigrate, mkPersist, persistFileWith,
-                                                  share, sqlSettings)
+import           Database.Persist.TH             (mkMigrate, mkPersist,
+                                                  persistFileWith, share,
+                                                  sqlSettings)
 
-import           Network.Haskoin.Block
-import           Network.Haskoin.Crypto
-import           Network.Haskoin.Node
-import           Network.Haskoin.Node.HeaderTree
-import           Network.Haskoin.Script
-import           Network.Haskoin.Transaction
-import           Network.Haskoin.Wallet.Types
+import           Network.Haskoin.Block           (BlockHash)
+import           Network.Haskoin.Crypto          (Address, HardPath, KeyIndex,
+                                                  Mnemonic, PubKeyC, XPrvKey,
+                                                  XPubKey)
+import           Network.Haskoin.Node            (BloomFilter)
+import           Network.Haskoin.Node.HeaderTree (BlockHeight, Timestamp)
+import           Network.Haskoin.Script          (ScriptOutput)
+import           Network.Haskoin.Transaction     (Tx, TxHash)
+import           Network.Haskoin.Wallet.Types    (AccountName, AccountType,
+                                                  AddressInfo, AddressType,
+                                                  BalanceInfo, JsonAccount (..),
+                                                  JsonAddr (..), JsonCoin (..),
+                                                  JsonTx (..), TxConfidence,
+                                                  TxType)
 
 share
     [mkPersist sqlSettings, mkMigrate "migrateWallet"]

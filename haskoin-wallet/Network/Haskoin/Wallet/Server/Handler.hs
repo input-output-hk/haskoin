@@ -3,15 +3,46 @@
 {-# LANGUAGE RecordWildCards       #-}
 {-# LANGUAGE TemplateHaskell       #-}
 
-module Network.Haskoin.Wallet.Server.Handler where
+module Network.Haskoin.Wallet.Server.Handler
+       ( Handler
+       , HandlerSession (..)
+       , adjustFCTime
+       , deleteTxIdR
+       , getAccountR
+       , getAccountsR
+       , getAddressR
+       , getAddressesR
+       , getAddressesUnusedR
+       , getAddrTxsR
+       , getBalanceR
+       , getDeadR
+       , getOfflineTxR
+       , getPendingR
+       , getSyncR
+       , getTxR
+       , getTxsR
+       , postAccountGapR
+       , postAccountKeysR
+       , postAccountRenameR
+       , postAccountsR
+       , postAddressesR
+       , postNodeR
+       , postOfflineTxR
+       , postTxsR
+       , putAddressR
+       , runDBPool
+       , runHandler
+       ) where
 
 import           Control.Arrow                      (first)
 import           Control.Concurrent.STM.TBMChan     (TBMChan)
-import           Control.Exception                  (SomeException (..), tryJust)
+import           Control.Exception                  (SomeException (..),
+                                                     tryJust)
 import           Control.Monad                      (liftM, unless, when)
 import           Control.Monad.Base                 (MonadBase)
 import           Control.Monad.Catch                (MonadThrow, throwM)
-import           Control.Monad.Logger               (MonadLoggerIO, logError, logInfo)
+import           Control.Monad.Logger               (MonadLoggerIO, logError,
+                                                     logInfo)
 import           Control.Monad.Reader               (ReaderT, asks, runReaderT)
 import           Control.Monad.Trans                (MonadIO, lift, liftIO)
 import           Control.Monad.Trans.Control        (MonadBaseControl)
@@ -23,27 +54,50 @@ import           Data.String.Conversions            (cs)
 import           Data.Text                          (Text, pack, unpack)
 import           Data.Word                          (Word32)
 import           Database.Esqueleto                 (Entity (..), SqlPersistT)
-import           Database.Persist.Sql               (ConnectionPool, SqlPersistM,
-                                                     runSqlPersistMPool, runSqlPool)
-import           Network.Haskoin.Block
-import           Network.Haskoin.Crypto
-import           Network.Haskoin.Node.BlockChain
-import           Network.Haskoin.Node.HeaderTree
-import           Network.Haskoin.Node.Peer
-import           Network.Haskoin.Node.STM
-import           Network.Haskoin.Transaction
+import           Database.Persist.Sql               (ConnectionPool,
+                                                     SqlPersistM,
+                                                     runSqlPersistMPool,
+                                                     runSqlPool)
+import           Network.Haskoin.Block              (BlockHash, blockHashToHex)
+import           Network.Haskoin.Crypto             (KeyIndex, XPrvKey, XPubKey,
+                                                     addrToBase58)
+import           Network.Haskoin.Node.BlockChain    (broadcastTxs, nodeStatus,
+                                                     rescanTs)
+import           Network.Haskoin.Node.HeaderTree    (BlockHeight, Timestamp,
+                                                     nodeBlockHeight, nodeHash,
+                                                     nodePrev)
+import           Network.Haskoin.Node.Peer          (sendBloomFilter)
+import           Network.Haskoin.Node.STM           (NodeT, SharedNodeState,
+                                                     atomicallyNodeT, runNodeT)
+import           Network.Haskoin.Transaction        (Tx, TxHash, txHash,
+                                                     txHashToHex, verifyStdTx)
 import           Network.Haskoin.Wallet.Accounts    (accounts, addAccountKeys,
                                                      addressList, firstAddrTime,
                                                      generateAddrs, getAccount,
                                                      getAddress, getBloomFilter,
-                                                     isCompleteAccount, newAccount,
-                                                     renameAccount, setAccountGap,
-                                                     setAddrLabel, unusedAddresses)
+                                                     isCompleteAccount,
+                                                     newAccount, renameAccount,
+                                                     setAccountGap,
+                                                     setAddrLabel,
+                                                     unusedAddresses)
 import           Network.Haskoin.Wallet.Block       (blockTxs, mainChain)
-import           Network.Haskoin.Wallet.Model
-import           Network.Haskoin.Wallet.Settings
-import           Network.Haskoin.Wallet.Transaction
-import           Network.Haskoin.Wallet.Types
+import           Network.Haskoin.Wallet.Model       (AccountId, WalletTx (..),
+                                                     toJsonAccount, toJsonAddr,
+                                                     toJsonTx, walletAddrIndex,
+                                                     walletTxAccount,
+                                                     walletTxConfidence)
+import           Network.Haskoin.Wallet.Settings    (Config (configMode),
+                                                     SPVMode (SPVOnline))
+import           Network.Haskoin.Wallet.Transaction (accTxsFromBlock,
+                                                     accountBalance, addrTxs,
+                                                     addressBalances,
+                                                     createWalletTx, deleteTx,
+                                                     getAccountTx,
+                                                     getOfflineTxData, importTx,
+                                                     resetRescan, signAccountTx,
+                                                     signOfflineTx, txs,
+                                                     walletBestBlock)
+import qualified Network.Haskoin.Wallet.Types       as WT
 
 type Handler m = ReaderT HandlerSession m
 
@@ -51,7 +105,7 @@ data HandlerSession = HandlerSession
     { handlerConfig    :: !Config
     , handlerPool      :: !ConnectionPool
     , handlerNodeState :: !(Maybe SharedNodeState)
-    , handlerNotifChan :: !(TBMChan Notif)
+    , handlerNotifChan :: !(TBMChan WT.Notif)
     }
 
 runHandler
@@ -98,8 +152,8 @@ getAccountsR
        ,MonadBase IO m
        ,MonadThrow m
        ,MonadResource m)
-    => ListRequest -> Handler m (Maybe Value)
-getAccountsR lq@ListRequest {..} = do
+    => WT.ListRequest -> Handler m (Maybe Value)
+getAccountsR lq@WT.ListRequest {..} = do
     $(logInfo) $
         format $
         unlines
@@ -109,12 +163,12 @@ getAccountsR lq@ListRequest {..} = do
             , "  Reversed    : " ++ show listReverse
             ]
     (accs, cnt) <- runDB $ accounts lq
-    return $ Just $ toJSON $ ListResult (map (toJsonAccount Nothing) accs) cnt
+    return $ Just $ toJSON $ WT.ListResult (map (toJsonAccount Nothing) accs) cnt
 
 postAccountsR
     :: (MonadResource m, MonadThrow m, MonadLoggerIO m, MonadBaseControl IO m)
-    => NewAccount -> Handler m (Maybe Value)
-postAccountsR newAcc@NewAccount {..} = do
+    => WT.NewAccount -> Handler m (Maybe Value)
+postAccountsR newAcc@WT.NewAccount {..} = do
     $(logInfo) $
         format $
         unlines
@@ -129,7 +183,7 @@ postAccountsR newAcc@NewAccount {..} = do
 
 postAccountRenameR
     :: (MonadResource m, MonadThrow m, MonadLoggerIO m, MonadBaseControl IO m)
-    => AccountName -> AccountName -> Handler m (Maybe Value)
+    => WT.AccountName -> WT.AccountName -> Handler m (Maybe Value)
 postAccountRenameR oldName newName = do
     $(logInfo) $
         format $
@@ -146,7 +200,7 @@ postAccountRenameR oldName newName = do
 
 getAccountR
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => AccountName -> Handler m (Maybe Value)
+    => WT.AccountName -> Handler m (Maybe Value)
 getAccountR name = do
     $(logInfo) $
         format $ unlines ["GetAccountR", "  Account name: " ++ unpack name]
@@ -155,7 +209,7 @@ getAccountR name = do
 
 postAccountKeysR
     :: (MonadResource m, MonadThrow m, MonadLoggerIO m, MonadBaseControl IO m)
-    => AccountName -> [XPubKey] -> Handler m (Maybe Value)
+    => WT.AccountName -> [XPubKey] -> Handler m (Maybe Value)
 postAccountKeysR name keys = do
     $(logInfo) $
         format $
@@ -178,8 +232,8 @@ postAccountGapR
        ,MonadBase IO m
        ,MonadThrow m
        ,MonadResource m)
-    => AccountName -> SetAccountGap -> Handler m (Maybe Value)
-postAccountGapR name (SetAccountGap gap) = do
+    => WT.AccountName -> WT.SetAccountGap -> Handler m (Maybe Value)
+postAccountGapR name (WT.SetAccountGap gap) = do
     $(logInfo) $
         format $
         unlines
@@ -198,11 +252,11 @@ postAccountGapR name (SetAccountGap gap) = do
 
 getAddressesR
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => AccountName
-    -> AddressType
+    => WT.AccountName
+    -> WT.AddressType
     -> Word32
     -> Bool
-    -> ListRequest
+    -> WT.ListRequest
     -> Handler m (Maybe Value)
 getAddressesR name addrType minConf offline listReq = do
     $(logInfo) $
@@ -211,8 +265,8 @@ getAddressesR name addrType minConf offline listReq = do
             [ "GetAddressesR"
             , "  Account name: " ++ unpack name
             , "  Address type: " ++ show addrType
-            , "  Start index : " ++ show (listOffset listReq)
-            , "  Reversed    : " ++ show (listReverse listReq)
+            , "  Start index : " ++ show (WT.listOffset listReq)
+            , "  Reversed    : " ++ show (WT.listReverse listReq)
             , "  MinConf     : " ++ show minConf
             , "  Offline     : " ++ show offline
             ]
@@ -230,7 +284,7 @@ getAddressesR name addrType minConf offline listReq = do
     -- Join addresses and balances together
     let g (addr, bal) = toJsonAddr addr (Just bal)
         addrBals = map g $ M.elems $ joinAddrs res bals
-    return $ Just $ toJSON $ ListResult addrBals cnt
+    return $ Just $ toJSON $ WT.ListResult addrBals cnt
   where
     joinAddrs addrs bals =
         let f addr = (walletAddrIndex addr, addr)
@@ -238,8 +292,8 @@ getAddressesR name addrType minConf offline listReq = do
 
 getAddressesUnusedR
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => AccountName -> AddressType -> ListRequest -> Handler m (Maybe Value)
-getAddressesUnusedR name addrType lq@ListRequest {..} = do
+    => WT.AccountName -> WT.AddressType -> WT.ListRequest -> Handler m (Maybe Value)
+getAddressesUnusedR name addrType lq@WT.ListRequest {..} = do
     $(logInfo) $
         format $
         unlines
@@ -254,13 +308,13 @@ getAddressesUnusedR name addrType lq@ListRequest {..} = do
         runDB $
         do accE <- getAccount name
            unusedAddresses accE addrType lq
-    return $ Just $ toJSON $ ListResult (map (`toJsonAddr` Nothing) addrs) cnt
+    return $ Just $ toJSON $ WT.ListResult (map (`toJsonAddr` Nothing) addrs) cnt
 
 getAddressR
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => AccountName
+    => WT.AccountName
     -> KeyIndex
-    -> AddressType
+    -> WT.AddressType
     -> Word32
     -> Bool
     -> Handler m (Maybe Value)
@@ -286,12 +340,12 @@ getAddressR name i addrType minConf offline = do
 
 putAddressR
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => AccountName
+    => WT.AccountName
     -> KeyIndex
-    -> AddressType
-    -> AddressLabel
+    -> WT.AddressType
+    -> WT.AddressLabel
     -> Handler m (Maybe Value)
-putAddressR name i addrType (AddressLabel label) = do
+putAddressR name i addrType (WT.AddressLabel label) = do
     $(logInfo) $
         format $
         unlines
@@ -312,7 +366,7 @@ postAddressesR
        ,MonadThrow m
        ,MonadBase IO m
        ,MonadResource m)
-    => AccountName -> KeyIndex -> AddressType -> Handler m (Maybe Value)
+    => WT.AccountName -> KeyIndex -> WT.AddressType -> Handler m (Maybe Value)
 postAddressesR name i addrType = do
     $(logInfo) $
         format $
@@ -331,12 +385,12 @@ postAddressesR name i addrType = do
 
 getTxs
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => AccountName
-    -> ListRequest
+    => WT.AccountName
+    -> WT.ListRequest
     -> String
-    -> (AccountId -> ListRequest -> SqlPersistT m ([WalletTx], Word32))
+    -> (AccountId -> WT.ListRequest -> SqlPersistT m ([WalletTx], Word32))
     -> Handler m (Maybe Value)
-getTxs name lq@ListRequest {..} cmd f = do
+getTxs name lq@WT.ListRequest {..} cmd f = do
     $(logInfo) $
         format $
         unlines
@@ -352,33 +406,33 @@ getTxs name lq@ListRequest {..} cmd f = do
            bb <- walletBestBlock
            (res, cnt) <- f ai lq
            return (res, cnt, bb)
-    return $ Just $ toJSON $ ListResult (map (g bb) res) cnt
+    return $ Just $ toJSON $ WT.ListResult (map (g bb) res) cnt
   where
     g bb = toJsonTx name (Just bb)
 
 getTxsR
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => AccountName -> ListRequest -> Handler m (Maybe Value)
+    => WT.AccountName -> WT.ListRequest -> Handler m (Maybe Value)
 getTxsR name lq = getTxs name lq "GetTxsR" (txs Nothing)
 
 getPendingR
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => AccountName -> ListRequest -> Handler m (Maybe Value)
-getPendingR name lq = getTxs name lq "GetPendingR" (txs (Just TxPending))
+    => WT.AccountName -> WT.ListRequest -> Handler m (Maybe Value)
+getPendingR name lq = getTxs name lq "GetPendingR" (txs (Just WT.TxPending))
 
 getDeadR
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => AccountName -> ListRequest -> Handler m (Maybe Value)
-getDeadR name lq = getTxs name lq "GetDeadR" (txs (Just TxDead))
+    => WT.AccountName -> WT.ListRequest -> Handler m (Maybe Value)
+getDeadR name lq = getTxs name lq "GetDeadR" (txs (Just WT.TxDead))
 
 getAddrTxsR
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => AccountName
+    => WT.AccountName
     -> KeyIndex
-    -> AddressType
-    -> ListRequest
+    -> WT.AddressType
+    -> WT.ListRequest
     -> Handler m (Maybe Value)
-getAddrTxsR name index addrType lq@ListRequest {..} = do
+getAddrTxsR name index addrType lq@WT.ListRequest {..} = do
     $(logInfo) $
         format $
         unlines
@@ -397,7 +451,7 @@ getAddrTxsR name index addrType lq@ListRequest {..} = do
            bb <- walletBestBlock
            (res, cnt) <- addrTxs accE addrE lq
            return (res, cnt, bb)
-    return $ Just $ toJSON $ ListResult (map (f bb) res) cnt
+    return $ Just $ toJSON $ WT.ListResult (map (f bb) res) cnt
   where
     f bb = toJsonTx name (Just bb)
 
@@ -407,7 +461,7 @@ postTxsR
        ,MonadBase IO m
        ,MonadThrow m
        ,MonadResource m)
-    => AccountName -> Maybe XPrvKey -> TxAction -> Handler m (Maybe Value)
+    => WT.AccountName -> Maybe XPrvKey -> WT.TxAction -> Handler m (Maybe Value)
 postTxsR name masterM action = do
     (accE@(Entity ai _), bb) <-
         runDB $
@@ -417,7 +471,7 @@ postTxsR name masterM action = do
     notif <- asks handlerNotifChan
     (txRes, newAddrs) <-
         case action of
-            CreateTx rs fee minconf rcptFee sign -> do
+            WT.CreateTx rs fee minconf rcptFee sign -> do
                 $(logInfo) $
                     format $
                     unlines
@@ -440,7 +494,7 @@ postTxsR name masterM action = do
                         minconf
                         rcptFee
                         sign
-            ImportTx tx -> do
+            WT.ImportTx tx -> do
                 $(logInfo) $
                     format $
                     unlines
@@ -454,9 +508,9 @@ postTxsR name masterM action = do
                            (txRes:_) -> return (txRes, newAddrs)
                            _ ->
                                throwM $
-                               WalletException
+                               WT.WalletException
                                    "Could not import the transaction"
-            SignTx txid -> do
+            WT.SignTx txid -> do
                 $(logInfo) $
                     format $
                     unlines
@@ -471,19 +525,19 @@ postTxsR name masterM action = do
                            (txRes:_) -> return (txRes, newAddrs)
                            _ ->
                                throwM $
-                               WalletException
+                               WT.WalletException
                                    "Could not import the transaction"
     whenOnline $
     -- Update the bloom filter
         do unless (null newAddrs) updateNodeFilter
            -- If the transaction is pending, broadcast it to the network
-           when (walletTxConfidence txRes == TxPending) $
+           when (walletTxConfidence txRes == WT.TxPending) $
                runNode $ broadcastTxs [walletTxHash txRes]
     return $ Just $ toJSON $ toJsonTx name (Just bb) txRes
 
 getTxR
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => AccountName -> TxHash -> Handler m (Maybe Value)
+    => WT.AccountName -> TxHash -> Handler m (Maybe Value)
 getTxR name txid = do
     $(logInfo) $
         format $
@@ -511,7 +565,7 @@ deleteTxIdR txid = do
 
 getBalanceR
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => AccountName -> Word32 -> Bool -> Handler m (Maybe Value)
+    => WT.AccountName -> Word32 -> Bool -> Handler m (Maybe Value)
 getBalanceR name minconf offline = do
     $(logInfo) $
         format $
@@ -533,7 +587,7 @@ getOfflineTxR
        ,MonadBase IO m
        ,MonadThrow m
        ,MonadResource m)
-    => AccountName -> TxHash -> Handler m (Maybe Value)
+    => WT.AccountName -> TxHash -> Handler m (Maybe Value)
 getOfflineTxR accountName txid = do
     $(logInfo) $
         format $
@@ -554,10 +608,10 @@ postOfflineTxR
        ,MonadBase IO m
        ,MonadThrow m
        ,MonadResource m)
-    => AccountName
+    => WT.AccountName
     -> Maybe XPrvKey
     -> Tx
-    -> [CoinSignData]
+    -> [WT.CoinSignData]
     -> Handler m (Maybe Value)
 postOfflineTxR accountName masterM tx signData = do
     $(logInfo) $
@@ -570,15 +624,15 @@ postOfflineTxR accountName masterM tx signData = do
     Entity _ acc <- runDB $ getAccount accountName
     let signedTx = signOfflineTx acc masterM tx signData
         complete = verifyStdTx signedTx $ map toDat signData
-        toDat CoinSignData {..} = (coinSignScriptOutput, coinSignOutPoint)
-    return $ Just $ toJSON $ TxCompleteRes signedTx complete
+        toDat WT.CoinSignData {..} = (coinSignScriptOutput, coinSignOutPoint)
+    return $ Just $ toJSON $ WT.TxCompleteRes signedTx complete
 
 postNodeR
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m)
-    => NodeAction -> Handler m (Maybe Value)
+    => WT.NodeAction -> Handler m (Maybe Value)
 postNodeR action =
     case action of
-        NodeActionRescan tM -> do
+        WT.NodeActionRescan tM -> do
             t <-
                 case tM of
                     Just t -> return $ adjustFCTime t
@@ -590,20 +644,20 @@ postNodeR action =
             whenOnline $
                 do runDB resetRescan
                    runNode $ atomicallyNodeT $ rescanTs t
-            return $ Just $ toJSON $ RescanRes t
-        NodeActionStatus -> do
+            return $ Just $ toJSON $ WT.RescanRes t
+        WT.NodeActionStatus -> do
             status <- runNode $ atomicallyNodeT nodeStatus
             return $ Just $ toJSON status
   where
-    err = throwM $ WalletException "No keys have been generated in the wallet"
+    err = throwM $ WT.WalletException "No keys have been generated in the wallet"
 
 getSyncR
     :: (MonadThrow m, MonadLoggerIO m, MonadBaseControl IO m)
-    => AccountName
+    => WT.AccountName
     -> Either BlockHeight BlockHash
-    -> ListRequest
+    -> WT.ListRequest
     -> Handler m (Maybe Value)
-getSyncR acc blockE lq@ListRequest {..} =
+getSyncR acc blockE lq@WT.ListRequest {..} =
     runDB $
     do $(logInfo) $
            format $
@@ -615,9 +669,9 @@ getSyncR acc blockE lq@ListRequest {..} =
                , "  Limit       : " ++ show listLimit
                , "  Reversed    : " ++ show listReverse
                ]
-       ListResult nodes cnt <- mainChain blockE lq
+       WT.ListResult nodes cnt <- mainChain blockE lq
        case nodes of
-           [] -> return $ Just $ toJSON $ ListResult ([] :: [()]) cnt
+           [] -> return $ Just $ toJSON $ WT.ListResult ([] :: [()]) cnt
            b:_ -> do
                Entity ai _ <- getAccount acc
                ts <-
@@ -626,10 +680,10 @@ getSyncR acc blockE lq@ListRequest {..} =
                        (nodeBlockHeight b)
                        (fromIntegral $ length nodes)
                let bts = blockTxs nodes ts
-               return $ Just $ toJSON $ ListResult (map f bts) cnt
+               return $ Just $ toJSON $ WT.ListResult (map f bts) cnt
   where
     f (block, txs') =
-        JsonSyncBlock
+        WT.JsonSyncBlock
         { jsonSyncBlockHash = nodeHash block
         , jsonSyncBlockHeight = nodeBlockHeight block
         , jsonSyncBlockPrev = nodePrev block

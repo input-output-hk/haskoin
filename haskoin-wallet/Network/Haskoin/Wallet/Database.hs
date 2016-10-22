@@ -1,7 +1,11 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Network.Haskoin.Wallet.Database where
+module Network.Haskoin.Wallet.Database
+       ( DatabaseConfType
+       , getDatabasePool
+       , paramLimit
+       ) where
 
 import           Control.Monad.Logger        (MonadLoggerIO)
 import           Control.Monad.Trans.Control (MonadBaseControl)

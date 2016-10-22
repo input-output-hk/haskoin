@@ -1,10 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Network.Haskoin.Wallet.Settings
-  ( SPVMode(..)
-  , OutputFormat(..)
-  , Config(..)
-  ) where
+       ( SPVMode(..)
+       , OutputFormat(..)
+       , Config(..)
+       ) where
 
 import           Control.Exception               (throw)
 import           Control.Monad                   (mzero)
@@ -22,9 +22,9 @@ import           Data.Text.Encoding              (encodeUtf8)
 import           Data.Word                       (Word32, Word64)
 import           Data.Yaml                       (decodeEither')
 
-import           Network.Haskoin.Crypto
-import           Network.Haskoin.Wallet.Database
-import           Network.Haskoin.Wallet.Types
+import           Network.Haskoin.Crypto          (HardPath)
+import           Network.Haskoin.Wallet.Database (DatabaseConfType)
+import           Network.Haskoin.Wallet.Types    (AddressType, BTCNode)
 
 import           Data.Restricted                 (Div5, Restricted)
 import           System.ZMQ4                     (toRestricted)
