@@ -5,10 +5,11 @@ packages:
 - haskoin-wallet
 extra-deps:
 - daemons-0.2.1
-- murmur3-1.0.2
+- esqueleto-2.4.3
+- murmur3-1.0.3
 - pbkdf-1.1.1.1
 - secp256k1-0.4.6
 nix:
   enable: false
-  packages: [ncurses, autoreconfHook, pkgconfig, czmq, zlib]
-resolver: lts-6.15
+  shell-file: shell.nix
+resolver: lts-6.23
