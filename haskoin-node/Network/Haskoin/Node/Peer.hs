@@ -57,6 +57,7 @@ import qualified Data.Map                        as M (assocs, elems, fromList,
 import           Data.Maybe                      (fromMaybe, isJust,
                                                   listToMaybe)
 import           Data.Serialize                  (decode, encode)
+import           Data.Set                        as S (fromList, notMember)
 import           Data.Streaming.Network          (AppData, HasReadWrite)
 import           Data.String.Conversions         (cs)
 import           Data.Text                       (Text, pack)
@@ -69,6 +70,7 @@ import           Network.Haskoin.Block           (BlockHash (..),
                                                   blockHashToHex,
                                                   extractMatches, headerHash,
                                                   merkleRoot)
+import           Network.Haskoin.Block.Types     (GetHeaders(..), Headers(..))
 import           Network.Haskoin.Constants       (haskoinUserAgent)
 import qualified Network.Haskoin.Node            as N
 import           Network.Haskoin.Node.HeaderTree (BlockHeight, nodeBlockHeight)
@@ -82,6 +84,9 @@ import           System.Random                   (randomIO)
 -- TODO: Move constants elsewhere ?
 minProtocolVersion :: Word32
 minProtocolVersion = 70001
+
+maxHeadersSize :: Int
+maxHeadersSize = 2000
 
 -- Start a reconnecting peer that will idle once the connection is established
 -- and the handshake is performed.
@@ -537,10 +542,19 @@ processMessage pid ph msg =
                    do STM.PeerSession {..} <- STM.getPeerSession pid
                       -- Add the Pong response time
                       lift $ modifyTVar' peerSessionPings (++ [nonce])
+        N.MGetHeaders (GetHeaders _ loc hashStop) -> lift $ STM.atomicallyNodeT $ do
+            (_, Headers myHeaders) <- STM.takeTMVarS STM.sharedHeaders
+            myHeadersIndex <- STM.readTVarS STM.sharedHeadersIndex
+            let headers = serveHeaders loc myHeaders myHeadersIndex hashStop
+            sendMessage pid (N.MHeaders $ Headers headers)
         N.MHeaders h ->
             lift $
             do $(logDebug) $ formatPid pid ph "Processing MHeaders message"
-               _ <- STM.atomicallyNodeT $ STM.tryPutTMVarS STM.sharedHeaders (pid, h)
+               _ <- STM.atomicallyNodeT $ do
+                    _ <- STM.tryPutTMVarS STM.sharedHeaders (pid, h)
+                    STM.writeTVarS STM.sharedHeadersIndex $
+                        (S.fromList $ map (headerHash . fst) $ headersList h)
+                    return ()
                return ()
         N.MInv inv ->
             lift $
@@ -652,6 +666,17 @@ processMessage pid ph msg =
                                  "Received a merkle block with an invalid merkle root"
         _ -> return () -- Ignore other requests
   where
+    -- Attention: non-optimal solution
+    -- O(N*logN) time, O(N) extra space for each run, where N -- blockchain size.
+    serveHeaders loc headers hIndex hashStop =
+        takeUntil hashStop (findLCAInChain loc headers hIndex)
+    findLCAInChain [] hs _ = hs
+    findLCAInChain (l:ls) hs hIdx | l `S.notMember` hIdx = findLCAInChain ls hs hIdx
+                                  | otherwise = takeWhile (\h -> headerHash (fst h) /= l) hs
+    takeUntil hashStop headers = dropN maxHeadersSize (if null xs then headers else xs)
+        where xs = dropWhile (\h -> headerHash (fst h) /= hashStop) headers
+              dropN n ls = drop (length ls - n) ls
+
     checkMerkleEnd = unless (isTxMsg msg) endMerkle
     endMerkle =
         get >>=

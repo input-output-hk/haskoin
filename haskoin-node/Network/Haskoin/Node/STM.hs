@@ -67,6 +67,7 @@ import           Control.Monad.Trans.Control     (MonadBaseControl)
 import           Data.Aeson.TH                   (deriveJSON)
 import qualified Data.Map.Strict                 as M (Map, delete, insert,
                                                        lookup)
+import qualified Data.Set                        as S (Set, empty)
 import           Data.Maybe                      (isJust)
 import           Data.Time.Clock                 (NominalDiffTime)
 import           Data.Typeable                   (Typeable)
@@ -125,6 +126,7 @@ getNodeState sharedSqlBackend
            sharedHostMap <- newTVarIO mempty
            sharedNetworkHeight <- newTVarIO 0
            sharedHeaders <- newEmptyTMVarIO
+           sharedHeadersIndex <- newTVarIO S.empty
            sharedHeaderPeer <- newTVarIO Nothing
            sharedMerklePeer <- newTVarIO Nothing
            sharedSyncLock <- atomically Lock.new
@@ -202,6 +204,10 @@ data SharedNodeState = SharedNodeState
     , sharedMempool       :: !(TVar (M.Map TxHash Tx))
       -- ^ Transactions to be added to the next block
     , sharedSqlBackend    :: !(Either SqlBackend ConnectionPool)
+
+    {- Full Node State -}
+    , sharedHeadersIndex  :: !(TVar (S.Set BlockHash))
+      -- ^ Hashes of all known block headers
     }
 
 {- Peer Data -}
