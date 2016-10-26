@@ -9,6 +9,7 @@
 module Network.Haskoin.Node.HeaderTree.Model
        ( EntityField (..)
        , NodeBlock (..)
+       , NodeBestChain (..)
        , migrateHeaderTree
        ) where
 
@@ -17,6 +18,7 @@ import           Database.Persist.Class                (EntityField (..))
 import           Database.Persist.TH                   (mkMigrate, mkPersist,
                                                         persistLowerCase, share,
                                                         sqlSettings)
+import           Network.Haskoin.Block.Types            (BlockHash(..))
 import           Network.Haskoin.Node.HeaderTree.Types (BlockHeight,
                                                         NodeHeader (..),
                                                         ShortHash, Work)
@@ -34,4 +36,10 @@ NodeBlock
     UniqueChain  chain height
     deriving     Show
     deriving     Eq
+
+NodeBestChain
+    hash         ShortHash
+    height       BlockHeight
+    UniqueHashC  hash
+    UniqueHeight height
 |]

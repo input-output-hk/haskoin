@@ -57,7 +57,6 @@ import qualified Data.Map                        as M (assocs, elems, fromList,
 import           Data.Maybe                      (fromMaybe, isJust,
                                                   listToMaybe)
 import           Data.Serialize                  (decode, encode)
-import           Data.Set                        as S (fromList, notMember)
 import           Data.Streaming.Network          (AppData, HasReadWrite)
 import           Data.String.Conversions         (cs)
 import           Data.Text                       (Text, pack)
@@ -73,13 +72,19 @@ import           Network.Haskoin.Block           (BlockHash (..),
 import           Network.Haskoin.Block.Types     (GetHeaders(..), Headers(..))
 import           Network.Haskoin.Constants       (haskoinUserAgent)
 import qualified Network.Haskoin.Node            as N
-import           Network.Haskoin.Node.HeaderTree (BlockHeight, nodeBlockHeight)
+import           Network.Haskoin.Node.HeaderTree (BlockHeight, nodeBlockHeight,
+                                                  getBlockByHash, getBlocksByHash,
+                                                  updateBestChain,
+                                                  getHeadersFromBestChain)
 import qualified Network.Haskoin.Node.STM        as STM
 import           Network.Haskoin.Transaction     (TxHash (..), txHash,
                                                   txHashToHex)
 import           Network.Haskoin.Util            (encodeHex)
 import           Network.Socket                  (SockAddr (SockAddrInet))
 import           System.Random                   (randomIO)
+
+import           Network.Haskoin.Node.HeaderTree.Model (NodeBlock(..),
+                                                        NodeBestChain(..))
 
 -- TODO: Move constants elsewhere ?
 minProtocolVersion :: Word32
@@ -542,20 +547,25 @@ processMessage pid ph msg =
                    do STM.PeerSession {..} <- STM.getPeerSession pid
                       -- Add the Pong response time
                       lift $ modifyTVar' peerSessionPings (++ [nonce])
-        N.MGetHeaders (GetHeaders _ loc hashStop) -> lift $ STM.atomicallyNodeT $ do
-            (_, Headers myHeaders) <- STM.takeTMVarS STM.sharedHeaders
-            myHeadersIndex <- STM.readTVarS STM.sharedHeadersIndex
-            let headers = serveHeaders loc myHeaders myHeadersIndex hashStop
-            sendMessage pid (N.MHeaders $ Headers headers)
-        N.MHeaders h ->
-            lift $
-            do $(logDebug) $ formatPid pid ph "Processing MHeaders message"
-               _ <- STM.atomicallyNodeT $ do
-                    _ <- STM.tryPutTMVarS STM.sharedHeaders (pid, h)
-                    STM.writeTVarS STM.sharedHeadersIndex $
-                        (S.fromList $ map (headerHash . fst) $ headersList h)
-                    return ()
-               return ()
+        N.MGetHeaders (GetHeaders _ loc hashStop) -> lift $ do
+            headers <- STM.runSqlNodeT $ do
+                stopHeight <- fmap nodeBlockHeight <$> getBlockByHash hashStop
+                serveHeaders loc stopHeight
+            STM.atomicallyNodeT $ sendMessage pid (N.MHeaders headers)
+        N.MHeaders h@(Headers hList) -> lift $ do
+            $(logDebug) $ formatPid pid ph "Processing MHeaders message"
+            -- Reconstruct the best chain out of headers
+            -- NOTE: it is presumed that NodeBlock is synchronized at this point!
+            -- TODO: should be implemented incrementally somewhere else in Full node
+            -- TODO: (e.g. at the place where we decide current best chain)
+            STM.runSqlNodeT $ do
+                let hashes = map (headerHash . fst) hList
+                dbHeaders <- map blockToChain <$> getBlocksByHash hashes
+                decideBestChain dbHeaders
+
+            -- Save headers in shared state
+            _ <- STM.atomicallyNodeT $ STM.tryPutTMVarS STM.sharedHeaders (pid, h)
+            return ()
         N.MInv inv ->
             lift $
             do $(logDebug) $ formatPid pid ph "Processing MInv message"
@@ -666,17 +676,19 @@ processMessage pid ph msg =
                                  "Received a merkle block with an invalid merkle root"
         _ -> return () -- Ignore other requests
   where
-    -- Attention: non-optimal solution
-    -- O(N*logN) time, O(N) extra space for each run, where N -- blockchain size.
-    serveHeaders loc headers hIndex hashStop =
-        takeUntil hashStop (findLCAInChain loc headers hIndex)
-    findLCAInChain [] hs _ = hs
-    findLCAInChain (l:ls) hs hIdx | l `S.notMember` hIdx = findLCAInChain ls hs hIdx
-                                  | otherwise = takeWhile (\h -> headerHash (fst h) /= l) hs
-    takeUntil hashStop headers = dropN maxHeadersSize (if null xs then headers else xs)
-        where xs = dropWhile (\h -> headerHash (fst h) /= hashStop) headers
-              dropN n ls = drop (length ls - n) ls
-
+    serveHeaders [] stopHeight = getHeadersFromBestChain Nothing stopHeight maxHeadersSize
+    serveHeaders (l:ls) stopHeight = getBlockByHash l >>=
+        \maybeBlock -> case maybeBlock of
+            Nothing            -> serveHeaders ls stopHeight
+            Just NodeBlock{..} -> getHeadersFromBestChain
+                                      (Just nodeBlockHeight)
+                                      stopHeight
+                                      maxHeadersSize
+    blockToChain NodeBlock{..} = NodeBestChain nodeBlockHash nodeBlockHeight
+    decideBestChain =
+        -- Dumb implementation without incremental update.
+        -- TODO: fix it.
+        updateBestChain
     checkMerkleEnd = unless (isTxMsg msg) endMerkle
     endMerkle =
         get >>=

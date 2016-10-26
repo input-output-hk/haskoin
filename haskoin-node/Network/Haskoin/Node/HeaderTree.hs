@@ -12,6 +12,7 @@ module Network.Haskoin.Node.HeaderTree
        , getBestBlock
        , getHeads
        , getBlockByHash
+       , getBlocksByHash
        , getParentBlock
        , getBlockWindow
        , getBlockAfterTime
@@ -39,6 +40,8 @@ module Network.Haskoin.Node.HeaderTree
        , connectHeaders
        , blockLocator
        , pruneChain
+       , updateBestChain
+       , getHeadersFromBestChain
        ) where
 
 import           Control.Monad                         (foldM, forM, unless,
@@ -52,7 +55,8 @@ import qualified Data.ByteString                       as BS (reverse, take)
 import           Data.Function                         (on)
 import           Data.List                             (find, maximumBy, sort)
 import           Data.Maybe                            (fromMaybe, isNothing,
-                                                        listToMaybe, mapMaybe)
+                                                        listToMaybe, mapMaybe,
+                                                        isJust, fromJust)
 import           Data.Serialize                        (decode, encode)
 import           Data.String.Conversions               (cs)
 import           Data.Word                             (Word32)
@@ -67,13 +71,16 @@ import           Database.Esqueleto                    (Esqueleto, Value, asc,
                                                         (>.), (>=.), (^.),
                                                         (||.))
 import           Database.Persist                      (Entity (..), insert_)
-import           Database.Persist.Sql                  (SqlPersistT)
+import           Database.Persist.Class                (PersistStore,
+                                                        PersistEntity(..))
+import           Database.Persist.Sql                  (SqlPersistT, SqlBackend)
 import           Network.Haskoin.Block                 (BlockHash (..),
                                                         BlockHeader (..),
                                                         BlockLocator,
                                                         blockHashToHex,
                                                         decodeCompact,
                                                         encodeCompact)
+import           Network.Haskoin.Block.Types           (Headers(..))
 import           Network.Haskoin.Constants             (allowMinDifficultyBlocks,
                                                         genesisHeader,
                                                         networkName,
@@ -85,6 +92,7 @@ import           Network.Haskoin.Node.Checkpoints      (checkpointList,
                                                         verifyCheckpoint)
 import           Network.Haskoin.Node.HeaderTree.Model (EntityField (..),
                                                         NodeBlock (..),
+                                                        NodeBestChain (..),
                                                         migrateHeaderTree)
 import           Network.Haskoin.Node.HeaderTree.Types (BlockHeight,
                                                         NodeHeader (..),
@@ -568,16 +576,23 @@ putBlock
     => NodeBlock -> SqlPersistT m ()
 putBlock = insert_
 
+chunksOf :: Int -> [a] -> [[a]]
+chunksOf _ [] = []
+chunksOf n xs =
+    let (xs', xxs) = splitAt n xs
+    in xs' : chunksOf n xxs
+
 -- | Put multiple blocks in database.
 putBlocks
     :: MonadIO m
     => [NodeBlock] -> SqlPersistT m ()
-putBlocks = mapM_ insertMany_ . f
-  where
-    f [] = []
-    f xs =
-        let (xs', xxs) = splitAt 50 xs
-        in xs' : f xxs
+putBlocks = mapM_ insertMany_ . chunksOf 50
+
+-- | Put best chain in database.
+putBestChain
+    :: MonadIO m
+    => [NodeBestChain] -> SqlPersistT m ()
+putBestChain = mapM_ insertMany_ . chunksOf 200
 
 getBestBlock
     :: MonadIO m
@@ -728,10 +743,36 @@ pruneChain best =
                     set t [NodeBlockChain =. val 0]
                     where_ $
                         t ^. NodeBlockHeight <=. val (nodeBlockHeight best) &&.
-                        t ^.
-                        NodeBlockChain !=.
-                        val 0
+                        t ^. NodeBlockChain !=. val 0
             return
                 best
                 { nodeBlockChain = 0
                 }
+
+-- | Replace current best chain in database with the given one.
+-- | TODO: there should also be incremental version of update
+updateBestChain
+    :: MonadIO m
+    => [NodeBestChain] -> SqlPersistT m ()
+updateBestChain new = do
+    -- delete current chain
+    delete $ from $ \t -> where_ $ t ^. NodeBestChainHeight >=. val 0
+    -- insert new chain
+    putBestChain new
+
+-- | Get headers from best chain, ranging from startHeight to stopHeight.
+getHeadersFromBestChain
+    :: MonadIO m
+    => Maybe BlockHeight -- ^ Start block height
+    -> Maybe BlockHeight -- ^ End block height (if specified)
+    -> Int               -- ^ Max amount of headers
+    -> SqlPersistT m Headers
+getHeadersFromBestChain startHeight stopHeight lim =
+    fmap (Headers . map undefined {- TODO: What remains here is to construct function [NodeBestChain] -> [BlockHeaderCount] -}) $
+    select $ from $ \t -> do
+        when (isJust startHeight) $
+            where_ $ t ^. NodeBestChainHeight >. val (fromJust startHeight)
+        when (isJust stopHeight) $
+            where_ $ t ^. NodeBestChainHeight <=. val (fromJust stopHeight)
+        limit $ fromIntegral lim
+        return t
