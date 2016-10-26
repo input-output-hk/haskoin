@@ -47,6 +47,7 @@ library
                      Network.Haskoin.Constants
                      Network.Haskoin.Test
                      Network.Haskoin.Internals
+                     Network.Haskoin.Block.Types
 
     other-modules: Network.Haskoin.Crypto.Hash
                    Network.Haskoin.Crypto.Base58
@@ -63,7 +64,6 @@ library
                    Network.Haskoin.Script.Evaluator
                    Network.Haskoin.Transaction.Types
                    Network.Haskoin.Transaction.Builder
-                   Network.Haskoin.Block.Types
                    Network.Haskoin.Block.Merkle
                    Network.Haskoin.Test.Util
                    Network.Haskoin.Test.Crypto

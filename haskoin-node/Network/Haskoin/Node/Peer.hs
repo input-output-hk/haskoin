@@ -103,7 +103,10 @@ startPeer ph@STM.PeerHost {..}
  = do
     pid <- liftIO newUnique
     -- Start the peer with the given PID
-    startPeerPid pid ph
+    let peer = STM.PeerId { peerId      = pid
+                          , peerChannel = STM.Outgoing
+                          }
+    startPeerPid peer ph
 
 startIncomingPeer
     :: (MonadBaseControl IO m, MonadLoggerIO m)
@@ -112,7 +115,10 @@ startIncomingPeer ad -- Create a new unique ID for this peer
  = do
     pid <- liftIO newUnique
     -- Start the peer with the given PID
-    startIncomingPeerPid pid ph ad
+    let peer = STM.PeerId { peerId      = pid
+                          , peerChannel = STM.Incoming
+                          }
+    startIncomingPeerPid peer ph ad
   where
     ph = peerHostFromSockAddr $ appSockAddr ad
 
@@ -126,17 +132,20 @@ startReconnectPeer
 startReconnectPeer ph@STM.PeerHost {..} -- Create a new unique ID for this peer
  = do
     pid <- liftIO newUnique
+    let peer = STM.PeerId { peerId      = pid
+                          , peerChannel = STM.Incoming
+                          }
     -- Wait if there is a reconnection timeout
-    maybeWaitReconnect pid
+    maybeWaitReconnect peer
     -- Launch the peer
-    withAsync (startPeerPid pid ph) $
+    withAsync (startPeerPid peer ph) $
         \a -> do
             resE <- liftIO $ waitCatch a
             reconnect <-
                 case resE of
                     Left se -> do
                         $(logError) $
-                            formatPid pid ph $
+                            formatPid peer ph $
                             unwords
                                 ["Peer thread stopped with exception:", show se]
                         return $
@@ -145,11 +154,14 @@ startReconnectPeer ph@STM.PeerHost {..} -- Create a new unique ID for this peer
                                 Just STM.NodeExceptionConnected -> False
                                 _                           -> True
                     Right _ -> do
-                        $(logDebug) $ formatPid pid ph "Peer thread stopped"
+                        $(logDebug) $ formatPid peer ph "Peer thread stopped"
                         return True
             -- Try to reconnect
             when reconnect $ startReconnectPeer ph
   where
+    maybeWaitReconnect
+        :: (MonadIO m, MonadLoggerIO m)
+        => STM.PeerId -> STM.NodeT m ()
     maybeWaitReconnect pid = do
         reconnect <-
             STM.atomicallyNodeT $
@@ -1078,7 +1090,12 @@ raceTimeout sec cleanup action = do
         Left _    -> fmap Left cleanup
 
 formatPid :: STM.PeerId -> STM.PeerHost -> String -> Text
-formatPid pid ph str =
-    pack $
-    concat
-        ["[Peer ", show $ hashUnique pid, " | ", STM.peerHostString ph, "] ", str]
+formatPid STM.PeerId {..} ph str =
+    pack $ concat
+          [ "[Peer "
+          , show $ hashUnique peerId
+          , " | "
+          , STM.peerHostString ph
+          , "] "
+          , str
+          ]

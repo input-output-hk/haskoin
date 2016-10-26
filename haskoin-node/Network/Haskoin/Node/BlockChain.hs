@@ -847,8 +847,8 @@ nodeStatus = do
            nodeStatusNetworkHeight <- readTVar sharedNetworkHeight
            nodeStatusBloomSize <-
                maybe 0 (S.length . bloomData . fst) <$> readTVar sharedBloomFilter
-           nodeStatusHeaderPeer <- fmap hashUnique <$> readTVar sharedHeaderPeer
-           nodeStatusMerklePeer <- fmap hashUnique <$> readTVar sharedMerklePeer
+           nodeStatusHeaderPeer <- fmap (hashUnique . STM.peerId) <$> readTVar sharedHeaderPeer
+           nodeStatusMerklePeer <- fmap (hashUnique . STM.peerId) <$> readTVar sharedMerklePeer
            nodeStatusHaveHeaders <- not <$> isEmptyTMVar sharedHeaders
            nodeStatusHaveTickles <- not <$> isEmptyTBMChan sharedTickleChan
            nodeStatusHaveTxs <- not <$> isEmptyTBMChan sharedTxChan
@@ -864,7 +864,7 @@ nodeStatus = do
 peerStatus :: (STM.PeerId, STM.PeerSession) -> STM.NodeT STM STM.PeerStatus
 peerStatus (pid, STM.PeerSession {..}) = do
     hostM <- STM.getHostSession peerSessionHost
-    let peerStatusPeerId = hashUnique pid
+    let peerStatusPeerId = hashUnique . STM.peerId $ pid
         peerStatusHost = peerSessionHost
         peerStatusConnected = peerSessionConnected
         peerStatusHeight = peerSessionHeight

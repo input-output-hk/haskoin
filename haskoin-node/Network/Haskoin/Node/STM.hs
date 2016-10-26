@@ -12,7 +12,8 @@ module Network.Haskoin.Node.STM
        , PeerHost (..)
        , PeerHostScore
        , PeerHostSession (..)
-       , PeerId
+       , PeerConnectionType (..)
+       , PeerId (..)
        , PeerSession (..)
        , PeerStatus (..)
        , SharedNodeState (..)
@@ -90,7 +91,16 @@ type MerkleTxs = [TxHash]
 
 type NodeT = ReaderT SharedNodeState
 
-type PeerId = Unique
+data PeerConnectionType
+    = Incoming
+    | Outgoing
+    deriving (Eq, Ord)
+
+-- FIXME: Rename `PeerId` simply to `Peer`?
+data PeerId = PeerId
+    { peerId      :: !Unique
+    , peerChannel :: !PeerConnectionType
+    } deriving (Eq, Ord)
 
 type PeerHostScore = Word32
 
@@ -99,7 +109,7 @@ newtype ShowPeerId = ShowPeerId
     } deriving (Eq)
 
 instance Show ShowPeerId where
-    show = show . hashUnique . getShowPeerId
+    show = show . hashUnique . peerId . getShowPeerId
 
 runSql
     :: (MonadBaseControl IO m)
