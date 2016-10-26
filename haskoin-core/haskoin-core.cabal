@@ -47,6 +47,7 @@ library
                      Network.Haskoin.Constants
                      Network.Haskoin.Test
                      Network.Haskoin.Internals
+                     Network.Haskoin.Node.Types
                      Network.Haskoin.Block.Types
 
     other-modules: Network.Haskoin.Crypto.Hash
@@ -55,7 +56,6 @@ library
                    Network.Haskoin.Crypto.ExtendedKeys
                    Network.Haskoin.Crypto.ECDSA
                    Network.Haskoin.Crypto.Mnemonic
-                   Network.Haskoin.Node.Types
                    Network.Haskoin.Node.Message
                    Network.Haskoin.Node.Bloom
                    Network.Haskoin.Script.Types

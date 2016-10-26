@@ -204,4 +204,9 @@ instance FromJSON Config where
 
 mergeValues :: Value -> Value -> Value
 mergeValues (Object d) (Object c) = Object (unionWith mergeValues d c)
+<<<<<<< HEAD
 mergeValues _ c                   = c
+=======
+mergeValues _ c = c
+
+>>>>>>> origin/address-index

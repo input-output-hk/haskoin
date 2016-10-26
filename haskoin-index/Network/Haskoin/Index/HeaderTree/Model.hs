@@ -6,22 +6,21 @@
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 
-module Network.Haskoin.Node.HeaderTree.Model
+module Network.Haskoin.Index.HeaderTree.Model
        ( EntityField (..)
        , NodeBlock (..)
        , NodeBestChain (..)
        , migrateHeaderTree
        ) where
 
-import           Data.Word                             (Word32)
-import           Database.Persist.Class                (EntityField (..))
-import           Database.Persist.TH                   (mkMigrate, mkPersist,
-                                                        persistLowerCase, share,
-                                                        sqlSettings)
-import           Network.Haskoin.Block.Types            (BlockHash(..))
-import           Network.Haskoin.Node.HeaderTree.Types (BlockHeight,
-                                                        NodeHeader (..),
-                                                        ShortHash, Work)
+import           Data.Word                              (Word32)
+import           Database.Persist.Class                 (EntityField (..))
+import           Database.Persist.TH                    (mkMigrate, mkPersist,
+                                                         persistLowerCase, share,
+                                                         sqlSettings)
+
+import           Network.Haskoin.Index.HeaderTree.Types (BlockHeight, NodeHeader (..),
+                                                         ShortHash, Work)
 
 share
     [mkPersist sqlSettings, mkMigrate "migrateHeaderTree"]
@@ -36,7 +35,6 @@ NodeBlock
     UniqueChain  chain height
     deriving     Show
     deriving     Eq
-
 NodeBestChain
     hash         ShortHash
     height       BlockHeight

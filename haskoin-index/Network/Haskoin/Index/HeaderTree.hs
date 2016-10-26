@@ -2,11 +2,13 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes            #-}
 
-module Network.Haskoin.Node.HeaderTree
-       ( BlockChainAction(..)
+module Network.Haskoin.Index.HeaderTree
+       ( BlockChainAction (..)
        , BlockHeight
        , NodeBlock
        , Timestamp
+
+       , isBetterChain
        , initHeaderTree
        , migrateHeaderTree
        , getBestBlock
@@ -48,8 +50,10 @@ import           Control.Monad                         (foldM, forM, unless,
                                                         when, (<=<))
 import           Control.Monad.State                   (evalStateT, get, put)
 import           Control.Monad.Trans                   (MonadIO, lift)
+import           Control.Monad.Trans.Control            (MonadBaseControl)
 import           Control.Monad.Trans.Either            (EitherT, left,
                                                         runEitherT)
+
 import           Data.Bits                             (shiftL)
 import qualified Data.ByteString                       as BS (reverse, take)
 import           Data.Function                         (on)
@@ -71,9 +75,10 @@ import           Database.Esqueleto                    (Esqueleto, Value, asc,
                                                         (>.), (>=.), (^.),
                                                         (||.))
 import           Database.Persist                      (Entity (..), insert_)
-import           Database.Persist.Class                (PersistStore,
-                                                        PersistEntity(..))
-import           Database.Persist.Sql                  (SqlPersistT, SqlBackend)
+import           Database.Persist.Sql                   (ConnectionPool,
+                                                         SqlBackend,
+                                                         SqlPersistT,
+                                                         runSqlConn, runSqlPool)
 import           Network.Haskoin.Block                 (BlockHash (..),
                                                         BlockHeader (..),
                                                         BlockLocator,
@@ -88,13 +93,13 @@ import           Network.Haskoin.Constants             (allowMinDifficultyBlocks
                                                         targetSpacing,
                                                         targetTimespan)
 import           Network.Haskoin.Crypto                (Hash256 (..))
-import           Network.Haskoin.Node.Checkpoints      (checkpointList,
+import           Network.Haskoin.Index.Checkpoints      (checkpointList,
                                                         verifyCheckpoint)
-import           Network.Haskoin.Node.HeaderTree.Model (EntityField (..),
+import           Network.Haskoin.Index.HeaderTree.Model (EntityField (..),
                                                         NodeBlock (..),
                                                         NodeBestChain (..),
                                                         migrateHeaderTree)
-import           Network.Haskoin.Node.HeaderTree.Types (BlockHeight,
+import           Network.Haskoin.Index.HeaderTree.Types (BlockHeight,
                                                         NodeHeader (..),
                                                         ShortHash, Timestamp)
 import           Network.Haskoin.Util                  (bsToInteger,
@@ -108,6 +113,12 @@ data BlockChainAction
     | SideChain { actionNodes :: ![NodeBlock]}
     | KnownChain { actionNodes :: ![NodeBlock]}
     deriving (Show, Eq)
+
+isBetterChain :: BlockChainAction -> Bool
+isBetterChain a = case a of
+    BestChain _ -> True
+    ChainReorg _ _ _ -> True
+    _ -> False
 
 type MinWork = Word32
 
@@ -728,27 +739,6 @@ evalNewChain best newNodes
   where
     buildsOnBest = nodePrev (head newNodes) == nodeHash best
 
--- | Remove all other chains from database and return updated best block node.
-pruneChain
-    :: MonadIO m
-    => NodeBlock -> SqlPersistT m NodeBlock
-pruneChain best =
-    if (nodeBlockChain best == 0)
-        then return best
-        else do
-            forks <- reverse <$> getPivots best
-            delete $ from $ \t -> where_ $ not_ (chainPathQuery t forks)
-            update $
-                \t -> do
-                    set t [NodeBlockChain =. val 0]
-                    where_ $
-                        t ^. NodeBlockHeight <=. val (nodeBlockHeight best) &&.
-                        t ^. NodeBlockChain !=. val 0
-            return
-                best
-                { nodeBlockChain = 0
-                }
-
 -- | Replace current best chain in database with the given one.
 -- | TODO: there should also be incremental version of update
 updateBestChain
@@ -776,3 +766,21 @@ getHeadersFromBestChain startHeight stopHeight lim =
             where_ $ t ^. NodeBestChainHeight <=. val (fromJust stopHeight)
         limit $ fromIntegral lim
         return t
+
+pruneChain :: MonadIO m
+           => NodeBlock
+           -> SqlPersistT m ()
+pruneChain best = unless (nodeBlockChain best == 0) $ do
+    forks <- reverse <$> getPivots best
+    delete $ from $ \t -> where_ $ not_ (chainPathQuery t forks)
+    update $ \t -> do
+        set t [ NodeBlockChain =. val 0 ]
+        where_ $ t ^. NodeBlockHeight <=. val (nodeBlockHeight best)
+              &&. t ^. NodeBlockChain  !=. val 0
+
+runSql :: (MonadBaseControl IO m)
+       => SqlPersistT m a
+       -> Either SqlBackend ConnectionPool
+       -> m a
+runSql f (Left  conn) = runSqlConn f conn
+runSql f (Right pool) = runSqlPool f pool

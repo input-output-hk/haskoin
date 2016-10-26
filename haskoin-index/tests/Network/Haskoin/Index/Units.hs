@@ -1,7 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
+<<<<<<< HEAD:haskoin-node/tests/Network/Haskoin/Node/Units.hs
 
 module Network.Haskoin.Node.Units where
 
+=======
+module Network.Haskoin.Index.Units where
+>>>>>>> origin/address-index:haskoin-index/tests/Network/Haskoin/Index/Units.hs
 import           Control.Monad                   (forM_, when)
 import           Control.Monad.Logger            (NoLoggingT)
 import           Control.Monad.Trans             (MonadIO, liftIO)
@@ -12,7 +16,7 @@ import           Database.Persist.Sqlite         (SqlPersistT, runMigrationSilen
                                                   runSqlite)
 import           Network.Haskoin.Block
 import           Network.Haskoin.Constants
-import           Network.Haskoin.Node.HeaderTree
+import           Network.Haskoin.Index.HeaderTree
 import           Test.Framework                  (Test, testGroup)
 import           Test.Framework.Providers.HUnit  (testCase)
 import           Test.HUnit                      (Assertion, assertBool, assertEqual,

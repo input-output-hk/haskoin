@@ -568,6 +568,7 @@ runZapAuth ctx k = do
                                    ]
                            liftIO $ sendMulti zap $ "1.0" :| [q, c, m, "", ""]
 
+<<<<<<< HEAD
 dispatchRequest
     :: (MonadLoggerIO m
        ,MonadBaseControl IO m
@@ -602,3 +603,38 @@ dispatchRequest req =
         GetSyncHeightR a n b      -> SH.getSyncR a (Left n) b
         GetPendingR a p           -> SH.getPendingR a p
         GetDeadR a p              -> SH.getDeadR a p
+=======
+dispatchRequest :: ( MonadLoggerIO m
+                   , MonadBaseControl IO m
+                   , MonadBase IO m
+                   , MonadThrow m
+                   , MonadResource m
+                   )
+                => WalletRequest -> Handler m (WalletResponse Value)
+dispatchRequest req = fmap ResponseValid $ case req of
+    GetAccountsR p                   -> getAccountsR p
+    PostAccountsR na                 -> postAccountsR na
+    PostAccountRenameR n n'          -> postAccountRenameR n n'
+    GetAccountR n                    -> getAccountR n
+    PostAccountKeysR n ks            -> postAccountKeysR n ks
+    PostAccountGapR n g              -> postAccountGapR n g
+    GetAddressesR n t m o p          -> getAddressesR n t m o p
+    GetAddressesUnusedR n t p        -> getAddressesUnusedR n t p
+    GetAddressR n i t m o            -> getAddressR n i t m o
+    PutAddressR n i t l              -> putAddressR n i t l
+    PostAddressesR n i t             -> postAddressesR n i t
+    GetTxsR n p                      -> getTxsR n p
+    GetAddrTxsR n i t p              -> getAddrTxsR n i t p
+    PostTxsR n k a                   -> postTxsR n k a
+    GetTxR n h                       -> getTxR n h
+    GetOfflineTxR n h                -> getOfflineTxR n h
+    PostOfflineTxR n k t c           -> postOfflineTxR n k t c
+    GetBalanceR n mc o               -> getBalanceR n mc o
+    PostNodeR na                     -> postNodeR na
+    DeleteTxIdR t                    -> deleteTxIdR t
+    GetSyncR a n b                   -> getSyncR a (Right n) b
+    GetSyncHeightR a n b             -> getSyncR a (Left n) b
+    GetPendingR a p                  -> getPendingR a p
+    GetDeadR a p                     -> getDeadR a p
+
+>>>>>>> origin/address-index

@@ -1,9 +1,10 @@
 -- | Hashing functions and HMAC DRBG definition
 module Network.Haskoin.Crypto.Hash
-       ( Hash512(getHash512)
-       , Hash256(getHash256)
-       , Hash160(getHash160)
-       , CheckSum32(getCheckSum32)
+       ( Hash512 (getHash512)
+       , Hash256 (getHash256)
+       , Hash160 (getHash160)
+       , CheckSum32 (getCheckSum32)
+       , WorkingState
        , bsToHash512
        , bsToHash256
        , bsToHash160
@@ -22,16 +23,14 @@ module Network.Haskoin.Crypto.Hash
        , hmacDRBGUpd
        , hmacDRBGRsd
        , hmacDRBGGen
-       , WorkingState
        ) where
-
-import           Crypto.Hash             (Digest, RIPEMD160, SHA1, SHA256,
-                                          SHA512, hash)
-import           Crypto.MAC.HMAC         (hmac)
 
 import           Control.DeepSeq         (NFData, rnf)
 import           Control.Monad           (guard, (<=<))
 import           Data.Byteable           (toBytes)
+import           Data.ByteString         (ByteString)
+import qualified Data.ByteString         as BS (append, concat, cons, empty, length, null,
+                                                replicate, splitAt, take)
 import           Data.Maybe              (fromMaybe)
 import           Data.Serialize          (Serialize, get, put)
 import           Data.Serialize.Get      (getByteString)
@@ -39,14 +38,11 @@ import           Data.Serialize.Put      (putByteString)
 import           Data.String             (IsString, fromString)
 import           Data.String.Conversions (cs)
 import           Data.Word               (Word16)
-import           Text.Read               (Lexeme (Ident, String), lexP, parens,
-                                          pfail, readPrec)
+import           Text.Read               (Lexeme (Ident, String), lexP, parens, pfail,
+                                          readPrec)
 
-import           Data.ByteString         (ByteString)
-import qualified Data.ByteString         as BS (append, concat, cons, empty,
-                                                length, null, replicate,
-                                                splitAt, take)
-
+import           Crypto.Hash             (Digest, RIPEMD160, SHA1, SHA256, SHA512, hash)
+import           Crypto.MAC.HMAC         (hmac)
 import           Network.Haskoin.Util    (decodeHex, encodeHex)
 
 newtype CheckSum32 = CheckSum32

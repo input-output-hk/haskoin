@@ -1,0 +1,144 @@
+name:                  haskoin-index
+version:               0.4.0
+synopsis:
+    Implementation of a Bitcoin address indexer.
+description:
+    haskoin-index will download full blocks through the Bitcoin p2p network
+    and build and address to transaction index using leveldb. The index can
+    be queried through a ZeroMQ api. haskoin-index downloads and verifies
+    headers from its peers but doesn't provide transaction verification.
+
+homepage:              http://github.com/haskoin/haskoin
+bug-reports:           http://github.com/haskoin/haskoin/issues
+tested-with:           GHC==7.10.3, GHC==7.10.2, GHC==7.10.1
+stability:             stable
+license:               PublicDomain
+license-file:          UNLICENSE
+author:                Philippe Laprade, Jean-Pierre Rupp
+maintainer:            plaprade+hackage@gmail.com
+category:              Bitcoin, Finance, Network
+build-type:            Simple
+cabal-version:         >= 1.9.2
+extra-source-files:    config/help, config/config.yml
+
+source-repository head
+    type:     git
+    location: git://github.com/input-output-hk/haskoin.git
+
+Flag library-only
+    Description:   Do not build the executables
+    Default:       False
+
+library
+    exposed-modules: Network.Haskoin.Index.Server
+                     Network.Haskoin.Index.Server.Handlers
+                     Network.Haskoin.Index.Client
+                     Network.Haskoin.Index.Client.Commands
+                     Network.Haskoin.Index.HeaderTree
+                     Network.Haskoin.Index.Checkpoints
+                     Network.Haskoin.Index.Peer
+                     Network.Haskoin.Index.BlockChain
+                     Network.Haskoin.Index.STM
+                     Network.Haskoin.Index.Settings
+                     Network.Haskoin.Index.Database
+
+    other-modules:   Network.Haskoin.Index.HeaderTree.Types
+                     Network.Haskoin.Index.HeaderTree.Model
+
+    extensions: TemplateHaskell
+                QuasiQuotes
+                OverloadedStrings
+                MultiParamTypeClasses
+                TypeFamilies
+                GADTs
+                FlexibleContexts
+                RecordWildCards
+                GeneralizedNewtypeDeriving
+                RankNTypes
+
+    build-depends: aeson                    >= 0.7
+                 , aeson-pretty             >= 0.7
+                 , async                    >= 2.0
+                 , base                     >= 4.8
+                 , bytestring               >= 0.10
+                 , cereal                   >= 0.5
+                 , concurrent-extra         >= 0.7
+                 , conduit                  >= 1.2
+                 , conduit-extra            >= 1.1
+                 , containers               >= 0.5
+                 , data-default             >= 0.5
+                 , daemons                  >= 0.2
+                 , deepseq                  >= 1.4
+                 , directory                >= 1.2
+                 , either                   >= 4.3
+                 , esqueleto
+                 , exceptions               >= 0.8
+                 , file-embed
+                 , filepath                 >= 1.4
+                 , haskoin-core
+                 , leveldb-haskell          >= 0.6.4
+                 , lifted-async             >= 0.2
+                 , lifted-base              >= 0.2
+                 , monad-control            >= 1.0
+                 , monad-logger             >= 0.3
+                 , mtl                      >= 2.2
+                 , network                  >= 2.4
+                 , persistent
+                 , persistent-template
+                 , persistent-sqlite        >= 2.2
+                 , resourcet                >= 1.1
+                 , random                   >= 1.0
+                 , semigroups
+                 , stm                      >= 2.4
+                 , stm-chans                >= 3.0
+                 , stm-conduit              >= 2.5
+                 , streaming-commons
+                 , string-conversions       >= 0.4
+                 , text                     >= 0.11
+                 , time                     >= 1.4
+                 , unix                     >= 2.6
+                 , unordered-containers     >= 0.2
+                 , yaml                     >= 0.8
+                 , zeromq4-haskell          >= 0.6
+
+    ghc-options: -threaded -rtsopts -with-rtsopts=-TN -Wall -O2
+                 -fno-warn-orphans
+
+    ghc-options: -Wall
+
+executable haskoin-index
+    if flag(library-only)
+        Buildable: False
+    main-is: Main.hs
+    build-depends: base, haskoin-index
+    hs-source-dirs: app
+    ghc-options: -Wall
+                 -O3
+                 -threaded
+                 -rtsopts
+                 -with-rtsopts=-N4
+
+test-suite test-haskoin-index
+    type:              exitcode-stdio-1.0
+    main-is:           Main.hs
+
+    extensions: EmptyDataDecls
+
+    other-modules: Network.Haskoin.Index.Tests
+                   Network.Haskoin.Index.Units
+
+    build-depends: base                           >= 4.8
+                 , haskoin-index
+                 , HUnit                          >= 1.2
+                 , QuickCheck                     >= 2.6
+                 , monad-logger                   >= 0.3
+                 , mtl                            >= 2.2
+                 , persistent
+                 , persistent-sqlite
+                 , resourcet                      >= 1.1
+                 , test-framework                 >= 0.8
+                 , test-framework-quickcheck2     >= 0.3
+                 , test-framework-hunit           >= 0.3
+
+    ghc-options:  -threaded -rtsopts -with-rtsopts=-TN -Wall -fno-warn-orphans
+    hs-source-dirs: tests

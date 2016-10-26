@@ -1,8 +1,7 @@
 flags: {}
 packages:
 - haskoin-core
-- haskoin-node
-- haskoin-wallet
+- haskoin-index
 extra-deps:
 - daemons-0.2.1
 - esqueleto-2.4.3

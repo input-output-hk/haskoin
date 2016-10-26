@@ -1,0 +1,10 @@
+Server commands:
+  start [--detach]                         Start the haskoin daemon
+  stop                                     Stop the haskoin daemon
+  status                                   Display node runtime information
+  addrtxs addr                             Get txs funding a given address
+  optxs hash pos                           Get txs spending a given outpoint
+
+Other commands:
+  version                                  Display version information
+  help                                     Display this help information

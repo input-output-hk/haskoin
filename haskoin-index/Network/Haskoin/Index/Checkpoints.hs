@@ -1,4 +1,4 @@
-module Network.Haskoin.Node.Checkpoints
+module Network.Haskoin.Index.Checkpoints
        ( checkpointMap
        , checkpointList
        , verifyCheckpoint

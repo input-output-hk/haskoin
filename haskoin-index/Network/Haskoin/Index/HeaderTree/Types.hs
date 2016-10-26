@@ -1,9 +1,10 @@
-module Network.Haskoin.Node.HeaderTree.Types
+module Network.Haskoin.Index.HeaderTree.Types
        ( BlockHeight
        , NodeHeader (..)
        , ShortHash
        , Timestamp
-       , Work) where
+       , Work
+       ) where
 
 import           Data.Serialize        (decode, encode)
 import           Data.String           (fromString)
