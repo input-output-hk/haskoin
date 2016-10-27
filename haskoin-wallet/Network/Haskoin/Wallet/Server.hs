@@ -3,7 +3,8 @@
 {-# LANGUAGE TemplateHaskell       #-}
 
 module Network.Haskoin.Wallet.Server
-       ( runSPVServer
+       ( going
+       , runSPVServer
        , stopSPVServer
        ) where
 
@@ -23,7 +24,8 @@ import           Control.Monad                         (forM_, forever, unless,
                                                         when)
 import           Control.Monad.Base                    (MonadBase)
 import           Control.Monad.Catch                   (MonadThrow)
-import           Control.Monad.Logger                  (MonadLoggerIO,
+import           Control.Monad.Logger                  (LoggingT, MonadLogger,
+                                                        MonadLoggerIO,
                                                         filterLogger, logDebug,
                                                         logError, logInfo,
                                                         logWarn,
@@ -33,13 +35,13 @@ import           Control.Monad.Trans                   (lift, liftIO)
 import           Control.Monad.Trans.Control           (MonadBaseControl,
                                                         liftBaseOpDiscard)
 import           Control.Monad.Trans.Resource          (MonadResource,
-                                                        runResourceT)
+                                                        ResourceT, runResourceT)
 import           Data.Aeson                            (Value, decode, encode)
 import           Data.ByteString                       (ByteString)
 import qualified Data.ByteString.Lazy                  as BL (fromStrict,
                                                               toStrict)
-import           Data.Conduit                          (await, awaitForever,
-                                                        ($$))
+import           Data.Conduit                          (ConduitM, await,
+                                                        awaitForever, ($$))
 import qualified Data.HashMap.Strict                   as H (lookup)
 import           Data.List.NonEmpty                    (NonEmpty ((:|)))
 import qualified Data.Map.Strict                       as M (Map, assocs, elems,
@@ -66,20 +68,18 @@ import           Network.Haskoin.Node.BlockChain       (areBlocksSynced,
                                                         broadcastTxs,
                                                         handleGetData,
                                                         merkleDownload,
-                                                        rescanTs, startSPVNode,
+                                                        startSPVNode,
                                                         startServerNode,
                                                         txSource)
 import           Network.Haskoin.Node.HeaderTree       (BlockChainAction (..),
                                                         migrateHeaderTree,
                                                         nodeBlockHeight,
                                                         nodeHash)
-import           Network.Haskoin.Node.Peer             (sendBloomFilter,
-                                                        waitBloomFilter)
+import           Network.Haskoin.Node.Peer             (sendBloomFilter)
 import qualified Network.Haskoin.Node.STM              as STM
 import           Network.Haskoin.Transaction           (Tx (..), TxHash,
                                                         txHashToHex, verifyTx)
-import           Network.Haskoin.Wallet.Accounts       (firstAddrTime,
-                                                        getBloomFilter,
+import           Network.Haskoin.Wallet.Accounts       (getBloomFilter,
                                                         initWallet)
 import           Network.Haskoin.Wallet.Database       (getDatabasePool)
 import           Network.Haskoin.Wallet.Model          (AccountId,
@@ -140,7 +140,7 @@ runSPVServer cfg =
            SPVOnline
            -- Initialize the node state
             -> do
-               node <- STM.getNodeState (Right pool)
+               node <- STM.initNodeState (Right pool)
                -- Spin up the node threads
                let session = SH.HandlerSession cfg pool (Just node) notif
                as <-
@@ -148,11 +148,10 @@ runSPVServer cfg =
                        async
                        -- Start the SPV node
                        [ STM.runNodeT (spv pool) node
-                       , STM.runNodeT (spvs pool) node
+                       , STM.runNodeT spvs node
                          -- Merkle block synchronization
-                         -- , runNodeT (runMerkleSync pool notif) node
                          -- Import solo transactions as they arrive from peers
-                       , STM.runNodeT (txSource $$ processTx pool notif) node
+                       , STM.runNodeT (txSource $$ processTx) node
                          -- Respond to transaction GetData requests
                        , STM.runNodeT
                              (handleGetData $ (`SH.runDBPool` pool) . getTx)
@@ -166,12 +165,11 @@ runSPVServer cfg =
                _ <- waitAnyCancel as
                return ()
   where
-    spv pool
-        -- Get our bloom filter
-     = do
+    -- Get our bloom filter
+    spv pool = do
         (bloom, elems, _) <- SH.runDBPool getBloomFilter pool
         startSPVNode hosts bloom elems
-    spvs pool = startServerNode $ fromIntegral . configSrvPort $ cfg
+    spvs = startServerNode $ fromIntegral . configSrvPort $ cfg
     -- Setup logging monads
     run = runResourceT . runLogging
     runLogging = runStdoutLoggingT . filterLogger logFilter
@@ -182,59 +180,52 @@ runSPVServer cfg =
             (error $ "BTC nodes for " ++ networkName ++ " not found")
             (pack networkName `H.lookup` configBTCNodes cfg)
     hosts = map (\x -> STM.PeerHost (btcNodeHost x) (btcNodePort x)) nodes
-    -- Run the merkle syncing thread
-    runMerkleSync pool notif = do
-        $(logDebug) "Waiting for a valid bloom filter for merkle downloads..."
-        -- Only download merkles if we have a valid bloom filter
-        _ <- STM.atomicallyNodeT waitBloomFilter
-        -- Provide a fast catchup time if we are at height 0
-        fcM <-
-            fmap (fmap SH.adjustFCTime) $
-            (`SH.runDBPool` pool) $
-            do (_, h) <- walletBestBlock
-               if h == 0
-                   then firstAddrTime
-                   else return Nothing
-        maybe (return ()) (STM.atomicallyNodeT . rescanTs) fcM
-        -- Start the merkle sync
-        merkleSync pool 500 notif
-    -- Run a thread that will re-broadcast pending transactions
-    broadcastPendingTxs pool =
-        forever $
-        do (hash, _) <- STM.runSqlNodeT walletBestBlock
-           -- Wait until we are synced
-           STM.atomicallyNodeT $
-               do synced <- areBlocksSynced hash
-                  unless synced $ lift retry
-           -- Send an INV for those transactions to all peers
-           broadcastTxs =<< SH.runDBPool (getPendingTxs 0) pool
-           -- Wait until we are not synced
-           STM.atomicallyNodeT $
-               do synced <- areBlocksSynced hash
-                  when synced $ lift retry
-    processTx pool notif =
-        awaitForever $
-        \tx ->
-             lift $ {-
-        (_, newAddrs) <- runDBPool (importNetTx tx (Just notif)) pool
-        unless (null newAddrs) $ do
-            $(logInfo) $ pack $ unwords
-                [ "Generated", show $ length newAddrs
-                , "new addresses while importing the tx."
-                , "Updating the bloom filter"
-                ]
-            (bloom, elems, _) <- runDBPool getBloomFilter pool
-            atomicallyNodeT $ sendBloomFilter bloom elems -}
-             do let tid = txHash tx
-                $(logDebug) $
-                    pack $
-                    unwords ["Inserting into mempool", cs (txHashToHex tid)]
-                -- Insert incoming transaction into the mempool (TODO: verification)
-                STM.atomicallyNodeT $ -- TODO: fix style
-                    do mempool <- STM.readTVarS STM.sharedMempool
-                       --let newMempool = M.insertWith (flip const) (txHash tx) tx mempool
-                       let newMempool = M.insert tid tx mempool -- TODO: what if transaction exists already?
-                       STM.writeTVarS STM.sharedMempool newMempool
+
+-- Run a thread that will re-broadcast pending transactions
+broadcastPendingTxs
+    :: (MonadBaseControl IO m, MonadLoggerIO m) =>
+    ConnectionPool -> STM.NodeT m t
+broadcastPendingTxs pool =
+    forever $
+    do (hash, _) <- STM.runSqlNodeT walletBestBlock
+       -- Wait until we are synced
+       STM.atomicallyNodeT $
+           do synced <- areBlocksSynced hash
+              unless synced $ lift retry
+       -- Send an INV for those transactions to all peers
+       broadcastTxs =<< SH.runDBPool (getPendingTxs 0) pool
+       -- Wait until we are not synced
+       STM.atomicallyNodeT $
+           do synced <- areBlocksSynced hash
+              when synced $ lift retry
+
+processTx
+    :: ConduitM Tx o (STM.NodeT (LoggingT (ResourceT IO))) ()
+processTx =
+    awaitForever $
+    \tx ->
+         lift $ {-
+    (_, newAddrs) <- runDBPool (importNetTx tx (Just notif)) pool
+    unless (null newAddrs) $ do
+        $(logInfo) $ pack $ unwords
+            [ "Generated", show $ length newAddrs
+            , "new addresses while importing the tx."
+            , "Updating the bloom filter"
+            ]
+        (bloom, elems, _) <- runDBPool getBloomFilter pool
+        atomicallyNodeT $ sendBloomFilter bloom elems -}
+         do let tid = txHash tx
+            $(logDebug) $
+                pack $
+                unwords ["Inserting into mempool", cs (txHashToHex tid)]
+            -- Insert incoming transaction into the mempool (TODO: verification)
+            STM.atomicallyNodeT $ -- TODO: fix style
+                do mempool <- STM.readTVarS STM.sharedMempool
+                   --let newMempool =
+                       --M.insertWith (flip const) (txHash tx) tx mempool
+                   -- TODO: what if transaction exists already?
+                   let newMempool = M.insert tid tx mempool
+                   STM.writeTVarS STM.sharedMempool newMempool
 
 initDatabase
     :: (MonadBaseControl IO m, MonadLoggerIO m)
@@ -276,6 +267,108 @@ acceptTx tid tx = do
   where
     acceptableTx mp = M.notMember tid mp && verifyTx tx
 
+-- Some logging of the blocks
+logBlockChainAction
+    :: MonadLogger m
+    => BlockChainAction -> m ()
+logBlockChainAction action =
+    case action of
+        BestChain nodes ->
+            $(logInfo) $
+            pack $
+            unwords
+                [ "Best chain height"
+                , show $ nodeBlockHeight $ last nodes
+                , "("
+                , cs $ blockHashToHex $ nodeHash $ last nodes
+                , ")"
+                ]
+        ChainReorg _ o n ->
+            $(logInfo) $
+            pack $
+            unlines $
+            ["Chain reorg.", "Orphaned blocks:"] ++
+            map (("  " ++) . cs . blockHashToHex . nodeHash) o ++
+            ["New blocks:"] ++
+            map (("  " ++) . cs . blockHashToHex . nodeHash) n ++
+            [ unwords
+                  [ "Best merkle chain height"
+                  , show $ nodeBlockHeight $ last n
+                  ]
+            ]
+        SideChain n ->
+            $(logWarn) $
+            pack $
+            unlines $
+            "Side chain:" :
+            map (("  " ++) . cs . blockHashToHex . nodeHash) n
+        KnownChain n ->
+            $(logWarn) $
+            pack $
+            unlines $
+            "Known chain:" :
+            map (("  " ++) . cs . blockHashToHex . nodeHash) n
+
+going :: forall (m :: * -> *) o a a1.
+         (Num a, MonadResource m, MonadBaseControl IO m, MonadLogger m) =>
+         Maybe haskoin-core-0.4.0:Network.Haskoin.Block.Types.BlockHeader
+         -> [a1]
+         -> M.Map
+              (persistent-2.2.4.1:Database.Persist.Class.PersistEntity.Key
+                 Network.Haskoin.Wallet.Model.Account)
+              a
+         -> ConnectionPool
+         -> ConduitM
+              (Either (MerkleBlock, a1) Tx)
+              o
+              m
+              (Maybe haskoin-core-0.4.0:Network.Haskoin.Block.Types.BlockHeader,
+               [a1],
+               M.Map
+                 (persistent-2.2.4.1:Database.Persist.Class.PersistEntity.Key
+                    Network.Haskoin.Wallet.Model.Account)
+                 a)
+going lastMerkle txsAcc argMap pool =
+    go lastMerkle txsAcc argMap
+  where
+    groupByAcc addrs =
+        let xs = map (\a -> (walletAddrAccount a, 1)) addrs
+        in M.fromListWith (+) xs
+    go lastMerkleM mTxsAcc aMap =
+        await >>=
+        \resM ->
+             case resM of
+                 Just (Right tx) -> do
+                     $(logDebug) $
+                         pack $
+                         unwords
+                             [ "Importing merkle tx"
+                             , cs $ txHashToHex $ txHash tx
+                             ]
+                     (_, newAddrs) <-
+                         lift $ SH.runDBPool (importNetTx tx Nothing) pool
+                     $(logDebug) $
+                         pack $
+                         unwords
+                             [ "Generated"
+                             , show $ length newAddrs
+                             , "new addresses while importing tx"
+                             , cs $ txHashToHex $ txHash tx
+                             ]
+                     let newMap = M.unionWith (+) aMap $ groupByAcc newAddrs
+                     go lastMerkleM mTxsAcc newMap
+                 Just (Left (MerkleBlock mHead _ _ _, mTxs)) -> do
+                     $(logDebug) $
+                         pack $
+                         unwords
+                             [ "Buffering merkle block"
+                             , cs $ blockHashToHex $ headerHash mHead
+                             ]
+                     go (Just mHead) (mTxs : mTxsAcc) aMap
+                 -- Done processing this batch. Reverse mTxsAcc as we have been
+                 -- prepending new values to it.
+                 _ -> return (lastMerkleM, reverse mTxsAcc, aMap)
+
 merkleSync
     :: (MonadLoggerIO m, MonadBaseControl IO m, MonadThrow m, MonadResource m)
     => ConnectionPool -> Word32 -> TBMChan Notif -> STM.NodeT m ()
@@ -288,7 +381,7 @@ merkleSync pool bSize notif
     (action, source) <- merkleDownload hash bSize
     $(logDebug) "Received a merkle action and source. Processing the source..."
     -- Read and process the data from the source
-    (lastMerkleM, mTxsAcc, aMap) <- source $$ go Nothing [] M.empty
+    (lastMerkleM, mTxsAcc, aMap) <- source $$ going Nothing [] M.empty pool
     $(logDebug) "Merkle source processed and closed"
     -- Send a new bloom filter to our peers if new addresses were generated
     unless (M.null aMap) $
@@ -332,43 +425,6 @@ merkleSync pool bSize notif
            logBlockChainAction action
     merkleSync pool newBSize notif
   where
-    go lastMerkleM mTxsAcc aMap =
-        await >>=
-        \resM ->
-             case resM of
-                 Just (Right tx) -> do
-                     $(logDebug) $
-                         pack $
-                         unwords
-                             [ "Importing merkle tx"
-                             , cs $ txHashToHex $ txHash tx
-                             ]
-                     (_, newAddrs) <-
-                         lift $ SH.runDBPool (importNetTx tx Nothing) pool
-                     $(logDebug) $
-                         pack $
-                         unwords
-                             [ "Generated"
-                             , show $ length newAddrs
-                             , "new addresses while importing tx"
-                             , cs $ txHashToHex $ txHash tx
-                             ]
-                     let newMap = M.unionWith (+) aMap $ groupByAcc newAddrs
-                     go lastMerkleM mTxsAcc newMap
-                 Just (Left (MerkleBlock mHead _ _ _, mTxs)) -> do
-                     $(logDebug) $
-                         pack $
-                         unwords
-                             [ "Buffering merkle block"
-                             , cs $ blockHashToHex $ headerHash mHead
-                             ]
-                     go (Just mHead) (mTxs : mTxsAcc) aMap
-                 -- Done processing this batch. Reverse mTxsAcc as we have been
-                 -- prepending new values to it.
-                 _ -> return (lastMerkleM, reverse mTxsAcc, aMap)
-    groupByAcc addrs =
-        let xs = map (\a -> (walletAddrAccount a, 1)) addrs
-        in M.fromListWith (+) xs
     shouldRescan aMap
                  -- Try to find an account whos gap is smaller than the number of new
                  -- addresses generated in that account.
@@ -385,44 +441,6 @@ merkleSync pool bSize notif
                      where_ $ join2 $ map andCond ks
                      return $ a ^. AccountId
         return $ not $ null res
-    -- Some logging of the blocks
-    logBlockChainAction action =
-        case action of
-            BestChain nodes ->
-                $(logInfo) $
-                pack $
-                unwords
-                    [ "Best chain height"
-                    , show $ nodeBlockHeight $ last nodes
-                    , "("
-                    , cs $ blockHashToHex $ nodeHash $ last nodes
-                    , ")"
-                    ]
-            ChainReorg _ o n ->
-                $(logInfo) $
-                pack $
-                unlines $
-                ["Chain reorg.", "Orphaned blocks:"] ++
-                map (("  " ++) . cs . blockHashToHex . nodeHash) o ++
-                ["New blocks:"] ++
-                map (("  " ++) . cs . blockHashToHex . nodeHash) n ++
-                [ unwords
-                      [ "Best merkle chain height"
-                      , show $ nodeBlockHeight $ last n
-                      ]
-                ]
-            SideChain n ->
-                $(logWarn) $
-                pack $
-                unlines $
-                "Side chain:" :
-                map (("  " ++) . cs . blockHashToHex . nodeHash) n
-            KnownChain n ->
-                $(logWarn) $
-                pack $
-                unlines $
-                "Known chain:" :
-                map (("  " ++) . cs . blockHashToHex . nodeHash) n
 
 maybeDetach :: Config -> IO () -> IO ()
 maybeDetach cfg action =
