@@ -11,4 +11,4 @@ extra-deps:
 nix:
   enable: false
   shell-file: shell.nix
-resolver: lts-6.23
+resolver: lts-8.10
